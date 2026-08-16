@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "party": ["m1"],
+  "monsters": {
+    "m1": {
+      "id": "m1",
+      "speciesId": "flamewolf",
+      "level": 1,
+      "iv": { "atk": 1, "hp": 1 },
+      "equipment": [],
+      "perks": [],
+      "awakening": 0,
+      "job": null
+    }
+  }
+}

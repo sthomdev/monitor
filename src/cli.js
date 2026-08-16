@@ -1,0 +1,233 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs/promises";
+import { openArchive } from "./asar.js";
+import { BACKUP_KEY, DEFAULT_ENDPOINT, SAVE_KEY, readLocalStorage } from "./cdp.js";
+import { loadGameRuntime } from "./game-runtime.js";
+import { startConstellationViewer } from "./constellation.js";
+import { runCraftController } from "./craft-controller.js";
+import { startLiveDashboard } from "./live.js";
+import { resolvePartyAttack } from "./real-stats.js";
+import { renderReport, writeReport } from "./report.js";
+import { readSave, summarizeSave, validateSave } from "./save.js";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const defaultArchive = path.resolve(projectRoot, "..", "resources", "app.asar");
+
+function usage() {
+  console.log(`TASMON Analyzer
+
+Usage:
+  npm start -- list [pattern]
+  npm start -- extract <archive-path> <output-path> [asar-path]
+  npm start -- inspect-save <save-json-path>
+  npm start -- party-attack <save-json-path>
+  npm start -- export-save <output-path> [port] [backup]
+  npm start -- render-report <save-json-path> [output-path]
+  npm start -- live [port] [cdp-port]
+  npm start -- craft [max-runs] [cdp-port] [gear|charm] --confirm [--loop]
+  npm start -- constellation [port] [save-json-path]
+
+Commands:
+  list          List first-party source and data files in the game archive.
+  extract       Extract one file from the archive without unpacking the archive.
+  inspect-save  Validate and summarize an exported TASMON save JSON file.
+  party-attack  Resolve actual party attack using the installed game data.
+  export-save   Read the save from a local DevTools port into a project file.
+  render-report Generate a standalone HTML attack calculation report.
+  live          Start the localhost read-only battle-rate dashboard.
+  craft         Automate the existing game craft controls after confirmation.
+  constellation Start the interactive read-only perk constellation viewer.
+`);
+}
+
+function archivePath(args) {
+  return args[0] && args[0].endsWith(".asar") ? path.resolve(args.shift()) : defaultArchive;
+}
+
+function listFiles(archive, pattern = "") {
+  const matcher = pattern ? new RegExp(pattern, "i") : null;
+  return archive
+    .files()
+    .map(({ path: filePath, entry }) => ({ filePath, entry }))
+    .filter(({ filePath }) => !filePath.startsWith("/node_modules/"))
+    .filter(({ filePath }) => !matcher || matcher.test(filePath))
+    .sort((left, right) => left.filePath.localeCompare(right.filePath));
+}
+
+function runList(args) {
+  const archive = openArchive(archivePath(args));
+  try {
+    for (const { filePath, entry } of listFiles(archive, args[0])) {
+      console.log(`${filePath}\t${entry.size}`);
+    }
+  } finally {
+    archive.close();
+  }
+}
+
+async function runExtract(args) {
+  const inputPath = args.shift();
+  const outputPath = args.shift();
+  if (!inputPath || !outputPath) {
+    throw new Error("extract requires an archive path and an output path");
+  }
+
+  const archive = openArchive(archivePath(args));
+  try {
+    const contents = archive.readFile(inputPath);
+    const destination = path.resolve(projectRoot, outputPath);
+    const relative = path.relative(projectRoot, destination);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error("Output path must stay inside info_project");
+    }
+    const outputDirectory = path.dirname(destination);
+    await fs.mkdir(outputDirectory, { recursive: true });
+    await fs.writeFile(destination, contents);
+    console.log(`Extracted ${inputPath} -> ${relative}`);
+  } finally {
+    archive.close();
+  }
+}
+
+async function runInspectSave(args) {
+  const savePath = args.shift();
+  if (!savePath) throw new Error("inspect-save requires a JSON file path");
+  const state = await readSave(path.resolve(savePath));
+  const errors = validateSave(state);
+  console.log(JSON.stringify({ valid: errors.length === 0, errors, summary: summarizeSave(state) }, null, 2));
+  if (errors.length > 0) process.exitCode = 2;
+}
+
+async function runPartyAttack(args) {
+  const savePath = args.shift();
+  if (!savePath) throw new Error("party-attack requires a JSON file path");
+  const state = await readSave(path.resolve(savePath));
+  const errors = validateSave(state);
+  if (errors.length > 0) throw new Error(`Invalid save: ${errors.join("; ")}`);
+  const runtime = await loadGameRuntime(defaultArchive, path.join(projectRoot, ".runtime"));
+  console.log(JSON.stringify({ party: resolvePartyAttack(state, runtime) }, null, 2));
+}
+
+async function runExportSave(args) {
+  const outputPath = args.shift();
+  if (!outputPath) throw new Error("export-save requires an output path");
+  const port = args.shift() ?? "9222";
+  const key = args.shift() === "backup" ? BACKUP_KEY : SAVE_KEY;
+  const endpoint = `${DEFAULT_ENDPOINT.replace(/:\d+$/, "")}:${port}`;
+  const saveText = await readLocalStorage(key, endpoint);
+  if (!saveText) throw new Error(`TASMON localStorage key was empty: ${key}`);
+  const destination = path.resolve(projectRoot, outputPath);
+  const relative = path.relative(projectRoot, destination);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Output path must stay inside info_project");
+  }
+  await fs.writeFile(destination, saveText, "utf8");
+  console.log(`Exported ${key} -> ${relative}`);
+}
+
+async function runLive(args) {
+  const port = Number(args.shift() ?? 4173);
+  const cdpPort = args.shift() ?? "9222";
+  const server = await startLiveDashboard({ port, endpoint: `http://127.0.0.1:${cdpPort}` });
+  console.log(`Live dashboard -> http://127.0.0.1:${port}`);
+  await new Promise((resolve) => server.on("close", resolve));
+}
+
+async function runCraft(args) {
+  const confirm = args.includes("--confirm");
+  const loop = args.includes("--loop");
+  const positional = args.filter((arg) => arg !== "--confirm" && arg !== "--loop");
+  const maxRuns = Number(positional.shift() ?? 1);
+  const cdpPort = positional.shift() ?? "9222";
+  const mode = positional.shift() ?? "gear";
+  const endpoint = `${DEFAULT_ENDPOINT.replace(/:\d+$/, "")}:${cdpPort}`;
+  const result = await runCraftController({ endpoint, maxRuns, mode, confirm, loop });
+  console.log(JSON.stringify({ mode, maxRuns, loop, ...result }, null, 2));
+}
+
+async function runConstellation(args) {
+  const port = Number(args.shift() ?? 4180);
+  const savePath = path.resolve(projectRoot, args.shift() ?? "save.json");
+  const server = await startConstellationViewer({ port, savePath });
+  console.log(`Constellation viewer -> http://127.0.0.1:${port}`);
+  await new Promise((resolve) => server.on("close", resolve));
+}
+
+async function runRenderReport(args) {
+  const savePath = args.shift();
+  if (!savePath) throw new Error("render-report requires a JSON file path");
+  const outputPath = args.shift() ?? "report.html";
+  const state = await readSave(path.resolve(savePath));
+  const errors = validateSave(state);
+  if (errors.length > 0) throw new Error(`Invalid save: ${errors.join("; ")}`);
+  const runtime = await loadGameRuntime(defaultArchive, path.join(projectRoot, ".runtime"));
+  const party = resolvePartyAttack(state, runtime);
+  const destination = path.resolve(projectRoot, outputPath);
+  const relative = path.relative(projectRoot, destination);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Output path must stay inside info_project");
+  }
+  await writeReport(destination, renderReport({ party }));
+  console.log(`Rendered report -> ${relative}`);
+}
+
+async function main() {
+  const [command, ...args] = process.argv.slice(2);
+  if (!command || command === "help" || command === "--help") {
+    usage();
+    return;
+  }
+
+  if (command === "list") {
+    runList(args);
+    return;
+  }
+
+  if (command === "extract") {
+    await runExtract(args);
+    return;
+  }
+
+  if (command === "inspect-save") {
+    await runInspectSave(args);
+    return;
+  }
+
+  if (command === "party-attack") {
+    await runPartyAttack(args);
+    return;
+  }
+
+  if (command === "export-save") {
+    await runExportSave(args);
+    return;
+  }
+
+  if (command === "render-report") {
+    await runRenderReport(args);
+    return;
+  }
+
+  if (command === "live") {
+    await runLive(args);
+    return;
+  }
+
+  if (command === "craft") {
+    await runCraft(args);
+    return;
+  }
+
+  if (command === "constellation") {
+    await runConstellation(args);
+    return;
+  }
+
+  throw new Error(`Unknown command: ${command}`);
+}
+
+main().catch((error) => {
+  console.error(`Error: ${error.message}`);
+  process.exitCode = 1;
+});
