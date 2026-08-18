@@ -22,6 +22,7 @@ npm start -- export-save save.json
 npm start -- render-report save.json report.html
 npm start -- live
 npm start -- craft 1 9222 gear --confirm
+npm start -- craft 1 9222 both --confirm --min-atk-pct 0.9 --min-skill-power 0.4
 npm start -- constellation
 ```
 
@@ -70,10 +71,11 @@ It requires explicit confirmation:
 ```powershell
 node src/cli.js craft 5 9222 gear --confirm
 node src/cli.js craft 5 9222 charm --confirm
+node src/cli.js craft 5 9222 both --confirm
 node src/cli.js craft 1 9222 gear --confirm --loop
 ```
 
-Before each run it reads the live debug state, requires a safe group of nine unlocked, unequipped items, and reports an explicit `exitReason` when it stops. Without `--confirm`, it refuses to run because crafting changes the live game state.
+Before each run it reads the live debug state, requires a safe group of nine unlocked, unequipped items, and reports an explicit `exitReason` when it stops. `both` mode chooses between eligible gear and charm batches, keeping the lanes separate. Immortal gear is eligible unless its combined `atkPct` is greater than `0.90` and its combined `skillPower` is greater than `0.40`; those values are summed from the item's `opts` and `enhances` arrays and are preserved from crafting. Override the defaults with `--min-atk-pct` and `--min-skill-power` (values are decimal fractions, so 90% is `0.9`). Gear-capable modes batch-open all pending common, rare, and boss chests through the game's existing chest API at the start of every iteration, including when no safe craft group exists, and checks again after a verified gear craft. Without `--confirm`, it refuses to run because crafting changes the live game state.
 
 Add `--loop` to repeat verified crafts every 10 seconds. The loop stops when no safe nine-item group remains or any controller check fails. Press `Ctrl+C` to stop it manually.
 
@@ -85,7 +87,7 @@ With TASMON running on its local DevTools port, start the read-only dashboard:
 node src/cli.js live
 ```
 
-Open `http://127.0.0.1:4173`. The dashboard samples a narrow projection from `window.__battleDebug()` once per second through CDP. It reports gross battle gold per minute, net gold per minute, party experience per minute, kills per minute, current stage, and current party progress. Gross gold counts positive gold changes; net gold also includes spending. The dashboard binds to localhost and does not modify the game archive, renderer code, Local Storage, or save data.
+Open `http://127.0.0.1:4173`. The dashboard samples a narrow projection from `window.__battleDebug()` once per second through CDP. It reports gross battle gold per minute, net gold per minute, party experience per minute, kills per minute, estimated chests per minute, the uncapped summed party `chestBonus`, current stage, and current party progress. The `Egg drops` tab records newly observed egg IDs and rarities for the dashboard session, with rarity percentages, a newest-first timeline, eggs/hour, average interval, and best/common rarity highlights. Estimated chests per minute is the kill rate multiplied by the current effective normal chest-drop chance; it does not modify live state. Gross gold counts positive gold changes; net gold also includes spending. The dashboard binds to localhost and does not modify the game archive, renderer code, Local Storage, or save data.
 
 ## Constellation Viewer
 

@@ -25,7 +25,7 @@ Usage:
   npm start -- export-save <output-path> [port] [backup]
   npm start -- render-report <save-json-path> [output-path]
   npm start -- live [port] [cdp-port]
-  npm start -- craft [max-runs] [cdp-port] [gear|charm] --confirm [--loop]
+  npm start -- craft [max-runs] [cdp-port] [gear|charm|both] --confirm [--loop] [--min-atk-pct 0.9] [--min-skill-power 0.4]
   npm start -- constellation [port] [save-json-path]
 
 Commands:
@@ -36,7 +36,7 @@ Commands:
   export-save   Read the save from a local DevTools port into a project file.
   render-report Generate a standalone HTML attack calculation report.
   live          Start the localhost read-only battle-rate dashboard.
-  craft         Automate the existing game craft controls after confirmation.
+  craft         Automate the existing game craft controls after confirmation (gear, charm, or both).
   constellation Start the interactive read-only perk constellation viewer.
 `);
 }
@@ -137,13 +137,24 @@ async function runLive(args) {
 async function runCraft(args) {
   const confirm = args.includes("--confirm");
   const loop = args.includes("--loop");
-  const positional = args.filter((arg) => arg !== "--confirm" && arg !== "--loop");
+  const valueOption = (name, fallback) => {
+    const index = args.indexOf(name);
+    if (index === -1) return fallback;
+    const value = Number(args[index + 1]);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${name} requires a non-negative number`);
+    return value;
+  };
+  const minAtkPct = valueOption("--min-atk-pct", 0.90);
+  const minSkillPower = valueOption("--min-skill-power", 0.40);
+  const valueOptions = new Set(["--min-atk-pct", "--min-skill-power"]);
+  const optionValues = new Set([...valueOptions].flatMap((name) => [name, args[args.indexOf(name) + 1]]));
+  const positional = args.filter((arg, index) => !optionValues.has(arg) && !valueOptions.has(args[index - 1]) && arg !== "--confirm" && arg !== "--loop");
   const maxRuns = Number(positional.shift() ?? 1);
   const cdpPort = positional.shift() ?? "9222";
   const mode = positional.shift() ?? "gear";
   const endpoint = `${DEFAULT_ENDPOINT.replace(/:\d+$/, "")}:${cdpPort}`;
-  const result = await runCraftController({ endpoint, maxRuns, mode, confirm, loop });
-  console.log(JSON.stringify({ mode, maxRuns, loop, ...result }, null, 2));
+  const result = await runCraftController({ endpoint, maxRuns, mode, confirm, loop, minAtkPct, minSkillPower });
+  console.log(JSON.stringify({ mode, maxRuns, loop, minAtkPct, minSkillPower, ...result }, null, 2));
 }
 
 async function runConstellation(args) {

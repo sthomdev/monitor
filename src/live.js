@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateRuntime } from "./cdp.js";
-import { AWAKENING, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, SKILLS, dexTotals } from "../extracted/data.js";
+import { AWAKENING, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
 
 const LEVEL_CAP = 100;
 const EMA_TIME_CONSTANT_MS = 30_000;
@@ -13,6 +13,32 @@ const wikiPath = fileURLToPath(new URL("../context.md", import.meta.url));
 const FIRST_EGG_MULT = 25;
 const ROOKIE_EGG_MULT = 3;
 const POST_ROOKIE_EGG_MULT = 0.22;
+const EQUIP_DROP_CHANCE = 0.045;
+const NORMAL_CHEST_BONUS_MULT = 1.5;
+const ROOKIE_CHEST_MULT = 1.5;
+const STAGES_PER_DIFFICULTY = 10;
+
+const percent = (value) => `${Math.round((value ?? 0) * 100)}%`;
+function englishSkillDescription(skill) {
+  const active = skill.active ?? {};
+  const cooldown = `${skill.cooldown ?? 0}s`;
+  const duration = active.duration ? ` for ${active.duration}s` : "";
+  let text = `Every ${cooldown}: `;
+  if (active.type === "buff") {
+    if (active.kind === "haste") text += `party attack speed +${percent(active.power)}${duration}`;
+    else if (active.kind === "critup") text += `party critical rate +${percent(active.power)}${duration}`;
+    else text += `party attack +${percent(active.power)}${duration}`;
+  } else if (active.type === "heal") text += `restore ${percent(active.power)} party HP`;
+  else if (active.type === "guard") text += `create a ${percent(active.power)} max-HP barrier${duration}`;
+  else text += `deal ${active.power ?? 0}x attack damage`;
+  const passive = skill.passive ?? {};
+  const passiveParts = [];
+  if (passive.atkMult) passiveParts.push(`attack +${percent(passive.atkMult - 1)}`);
+  if (passive.hpMult) passiveParts.push(`max HP +${percent(passive.hpMult - 1)}`);
+  if (passive.dropBonus) passiveParts.push(`drop rate +${percent(passive.dropBonus)}`);
+  if (passive.goldBonus) passiveParts.push(`gold +${percent(passive.goldBonus)}`);
+  return passiveParts.length ? `${text} / ${passiveParts.join(", ")}` : text;
+}
 
 function fallbackEggDrop(state) {
   if (!state?.party || !state.monsters) return null;
@@ -21,7 +47,8 @@ function fallbackEggDrop(state) {
   const equipmentStat = (member, key) => (member.equipment ?? []).reduce(
     (total, item) => total
       + (item.stats?.[key] ?? item.stat?.[key] ?? 0)
-      + (item.opts ?? []).filter((entry) => entry.stat === key).reduce((sum, entry) => sum + (entry.value ?? 0), 0),
+      + (item.opts ?? []).filter((entry) => entry.stat === key).reduce((sum, entry) => sum + (entry.value ?? 0), 0)
+      + (item.enhances ?? []).filter((entry) => entry?.stat === key).reduce((sum, entry) => sum + (entry.value ?? 0), 0),
     0,
   );
   const bonus = sum((member) => SKILLS[member.skillId]?.passive?.dropBonus ?? 0)
@@ -32,7 +59,8 @@ function fallbackEggDrop(state) {
     + Math.min(DEX_BUFF_CAPS.drop, dexTotals(state.dex).drop);
   const owned = (state.monsterCount ?? Object.keys(state.monsters).length) + (state.eggs ?? 0);
   const baseMult = owned < 3 ? (owned <= 1 ? FIRST_EGG_MULT : ROOKIE_EGG_MULT) : POST_ROOKIE_EGG_MULT;
-  return { chance: EGG_DROP_CHANCE * baseMult * (1 + Math.max(0, bonus)), bonus };
+  const base = EGG_DROP_CHANCE * baseMult;
+  return { base, chance: base * (1 + Math.max(0, bonus)), bonus };
 }
 
 function fallbackGlobalBonuses(state) {
@@ -159,7 +187,34 @@ function projectExpression() {
         dex: state.dex ?? {},
         eggs: state.eggs?.length ?? 0,
       },
+      eggInventory: (state.eggs ?? []).map((egg) => ({ id: egg.id, rarity: egg.rarity })),
       totalKills: state.totalKills ?? 0,
+      chestBonus: (state.party ?? []).reduce((total, id) => {
+        const monster = state.monsters?.[id];
+        return total + (monster?.equipment ?? []).reduce((sum, item) => sum
+          + (item.stats?.chestBonus ?? item.stat?.chestBonus ?? 0)
+          + (item.opts ?? []).filter((entry) => entry.stat === "chestBonus")
+            .reduce((optionSum, entry) => optionSum + (entry.value ?? 0), 0)
+          + (item.enhances ?? []).filter((entry) => entry?.stat === "chestBonus")
+            .reduce((enhanceSum, entry) => enhanceSum + (entry.value ?? 0), 0), 0);
+      }, 0),
+      chestDrop: {
+        base: ${EQUIP_DROP_CHANCE}
+          * (state.difficulty === 0 && (state.bossClearedD?.[0] ?? 0) < ${STAGES_PER_DIFFICULTY} ? ${NORMAL_CHEST_BONUS_MULT} : 1)
+          * (Object.keys(state.monsters ?? {}).length + (state.eggs?.length ?? 0) < 3 ? ${ROOKIE_CHEST_MULT} : 1),
+        chance: ${EQUIP_DROP_CHANCE}
+          * (state.difficulty === 0 && (state.bossClearedD?.[0] ?? 0) < ${STAGES_PER_DIFFICULTY} ? ${NORMAL_CHEST_BONUS_MULT} : 1)
+          * (Object.keys(state.monsters ?? {}).length + (state.eggs?.length ?? 0) < 3 ? ${ROOKIE_CHEST_MULT} : 1)
+          * (1 + (state.party ?? []).reduce((total, id) => {
+          const monster = state.monsters?.[id];
+          return total + (monster?.equipment ?? []).reduce((sum, item) => sum
+            + (item.stats?.chestBonus ?? item.stat?.chestBonus ?? 0)
+            + (item.opts ?? []).filter((entry) => entry.stat === "chestBonus")
+              .reduce((optionSum, entry) => optionSum + (entry.value ?? 0), 0)
+            + (item.enhances ?? []).filter((entry) => entry?.stat === "chestBonus")
+              .reduce((enhanceSum, entry) => enhanceSum + (entry.value ?? 0), 0), 0);
+        }, 0)),
+      },
       stage: state.stage ?? 0,
       difficulty: state.difficulty ?? 0,
       killsInStage: state.killsInStage ?? 0,
@@ -202,6 +257,7 @@ export function createLiveMetrics() {
     experience: 0,
     experienceByMember: new Map(),
     kills: 0,
+    eggDrops: [],
     elapsedMs: 0,
     ema: {
       grossGoldPerMinute: null,
@@ -240,6 +296,10 @@ export function createLiveMetrics() {
         }
         const killsDelta = Math.max(0, snapshot.totalKills - session.last.totalKills);
         session.kills += killsDelta;
+        const previousEggs = new Set((session.last.eggInventory ?? []).map((egg) => egg.id));
+        for (const egg of snapshot.eggInventory ?? []) {
+          if (!previousEggs.has(egg.id)) session.eggDrops.push({ timestamp: now, rarity: egg.rarity ?? "unknown" });
+        }
         if (elapsed > 0) {
           session.ema.grossGoldPerMinute = smooth(session.ema.grossGoldPerMinute, rate(Math.max(0, goldDelta), elapsed), elapsed);
           session.ema.netGoldPerMinute = smooth(session.ema.netGoldPerMinute, rate(goldDelta, elapsed), elapsed);
@@ -275,6 +335,7 @@ export function createLiveMetrics() {
         netGold: session.netGold,
         experience: session.experience,
         kills: session.kills,
+        eggDrops: session.eggDrops,
         smoothing: "EMA",
         smoothingTimeConstantMs: EMA_TIME_CONSTANT_MS,
         rates: {
@@ -282,6 +343,7 @@ export function createLiveMetrics() {
           netGoldPerMinute: session.ema.netGoldPerMinute ?? 0,
           experiencePerMinute: session.ema.experiencePerMinute ?? 0,
           killsPerMinute: session.ema.killsPerMinute ?? 0,
+          estimatedChestsPerMinute: (session.ema.killsPerMinute ?? 0) * (latest?.chestDrop?.chance ?? 0),
           eggsPerHour: (session.ema.killsPerMinute ?? 0) * 60 * (latest?.eggDrop?.chance ?? 0),
           experiencePerMember: Object.fromEntries(session.ema.experiencePerMember),
         },
@@ -296,6 +358,7 @@ export function createLiveMetrics() {
       session.experience = 0;
       session.experienceByMember.clear();
       session.kills = 0;
+      session.eggDrops = [];
       session.elapsedMs = 0;
       session.ema.grossGoldPerMinute = null;
       session.ema.netGoldPerMinute = null;
@@ -325,11 +388,33 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
 
   await poll();
   const timer = setInterval(poll, 1000);
+  const signatureOwners = Object.fromEntries(
+    Object.entries(SPECIES)
+      .filter(([, species]) => SKILLS[species.skillId]?.signature)
+      .map(([speciesId, species]) => [species.skillId, speciesId]),
+  );
+  const skillCatalog = Object.entries(SKILLS).map(([id, skill]) => ({
+    id,
+    name: skill.name ?? id,
+    description: englishSkillDescription(skill),
+    type: skill.active?.type ?? "unknown",
+    kind: skill.active?.kind ?? "single",
+    power: skill.active?.power ?? 0,
+    cooldown: skill.cooldown ?? 0,
+    stars: skillStars(id),
+    hits: skill.active?.hits ?? 1,
+    availability: skill.signature ? (signatureOwners[id] ? `${signatureOwners[id]} (natural owner)` : "Signature") : skill.enhanceOnly ? "Enhancement-only" : skill.jobOnly ? "Job-only" : "Normal",
+  }));
   const server = http.createServer(async (request, response) => {
     const pathname = new URL(request.url, `http://${request.headers.host ?? "localhost"}`).pathname;
     if (pathname === "/api/live") {
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
       response.end(JSON.stringify(metrics.read()));
+      return;
+    }
+    if (pathname === "/api/skills") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      response.end(JSON.stringify(skillCatalog));
       return;
     }
     if (pathname === "/api/reset" && request.method === "POST") {

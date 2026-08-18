@@ -3,7 +3,11 @@ import { evaluateRuntime } from "./cdp.js";
 const DEFAULT_ENDPOINT = "http://127.0.0.1:9222";
 const CRAFT_COST = 9;
 const WAIT_MS = 150;
-const LOOP_INTERVAL_MS = 10_000;
+const VERIFY_WAIT_MS = 100;
+const VERIFY_ATTEMPTS = 10;
+const LOOP_INTERVAL_MS = 5_000;
+const DEFAULT_MIN_ATK_PCT = 0.90;
+const DEFAULT_MIN_SKILL_POWER = 0.40;
 const RETRYABLE_UI_REASONS = new Set([
   "compound-tab-not-found",
   "craft-window-not-visible",
@@ -23,6 +27,10 @@ const SNAPSHOT = `(() => {
     lv: item.lv ?? 1,
     part: item.part,
     locked: !!item.locked,
+    stats: [...(item.opts ?? []), ...(item.enhances ?? [])].reduce((totals, entry) => {
+      if (entry?.stat) totals[entry.stat] = (totals[entry.stat] ?? 0) + (entry.value ?? 0);
+      return totals;
+    }, {}),
   });
   return {
     items: (state.items ?? []).map(project),
@@ -32,27 +40,41 @@ const SNAPSHOT = `(() => {
 })()`;
 
 function bandOf(level) {
-  const bands = [1, 10, 15, 20, 30, 40, 50, 60, 65, 80];
-  let result = 0;
-  for (let index = 0; index < bands.length; index += 1) {
-    if (level >= bands[index]) result = index;
+  const bands = [
+    { min: 1, max: 10 },
+    { min: 10, max: 20 },
+    { min: 15, max: 30 },
+    { min: 20, max: 40 },
+    { min: 30, max: 50 },
+    { min: 40, max: 65 },
+    { min: 65, max: 80 },
+  ];
+  const itemLevel = Math.max(1, Math.round(level ?? 1));
+  for (let index = bands.length - 1; index >= 0; index -= 1) {
+    if (itemLevel >= bands[index].min && itemLevel <= bands[index].max) return index;
   }
-  return result;
+  return itemLevel > 80 ? bands.length - 1 : 0;
 }
 
-export function craftableGroupCount(snapshot, mode = "gear") {
+export function craftableGroupCount(snapshot, mode = "gear", thresholds = {}) {
   if (!snapshot) return [];
+  const minAtkPct = thresholds.minAtkPct ?? DEFAULT_MIN_ATK_PCT;
+  const minSkillPower = thresholds.minSkillPower ?? DEFAULT_MIN_SKILL_POWER;
   const equipped = new Set(snapshot.equipped ?? []);
   const groups = new Map();
   for (const item of [...(snapshot.items ?? []), ...(snapshot.storage ?? [])]) {
     const charm = item.part === "charm";
-    if (mode === "charm" ? !charm : charm) continue;
+    const itemMode = charm ? "charm" : "gear";
+    if (mode !== "both" && mode !== itemMode) continue;
+    const protectedItem =
+      (item.stats?.atkPct ?? 0) > minAtkPct && (item.stats?.skillPower ?? 0) > minSkillPower;
+    if (itemMode === "gear" && protectedItem) continue;
     if (item.locked || equipped.has(item.id)) continue;
-    const key = `${item.rarity}|${bandOf(item.lv)}`;
-    groups.set(key, (groups.get(key) ?? 0) + 1);
+    const key = `${itemMode}|${item.rarity}|${bandOf(item.lv)}`;
+    groups.set(key, { mode: itemMode, rarity: item.rarity, band: bandOf(item.lv), count: (groups.get(key)?.count ?? 0) + 1 });
   }
   return [...groups.entries()]
-    .map(([key, count]) => ({ key, count, batches: Math.floor(count / CRAFT_COST) }))
+    .map(([key, group]) => ({ key, ...group, batches: Math.floor(group.count / CRAFT_COST) }))
     .filter((group) => group.count > 0)
     .sort((left, right) => right.count - left.count);
 }
@@ -61,7 +83,7 @@ async function gameAction(expression, endpoint) {
   return evaluateRuntime(expression, endpoint, { awaitPromise: true });
 }
 
-function craftUiExpression(mode) {
+function craftUiExpression(mode, band) {
   const modeValue = mode === "charm" ? "craftCharm" : "craft";
   return `(async () => {
     const text = (node) => node?.textContent?.replace(/\\s+/g, " ").trim() ?? "";
@@ -92,6 +114,13 @@ function craftUiExpression(mode) {
     modeSel.value = ${JSON.stringify(modeValue)};
     modeSel.dispatchEvent(new Event("change", { bubbles: true }));
     await new Promise((resolve) => setTimeout(resolve, 50));
+    const bandSel = [...document.querySelectorAll("#cube-body select.cube-band")]
+      .find((select) => [...select.options].some((option) => option.value === ${JSON.stringify(String(band))}));
+    if (!bandSel || ![...bandSel.options].some((option) => option.value === ${JSON.stringify(String(band))}))
+      return { ok: false, reason: "craft-band-not-found" };
+    bandSel.value = ${JSON.stringify(String(band))};
+    bandSel.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     const auto = [...body.querySelectorAll("button")]
       .find((button) => ["自動入力", "Auto-fill"].includes(text(button)));
     if (!auto) return { ok: false, reason: "auto-fill-not-found" };
@@ -107,19 +136,46 @@ function craftUiExpression(mode) {
   })()`;
 }
 
-export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns = 1, mode = "gear", confirm = false, loop = false, log = console.log } = {}) {
+const OPEN_PENDING_CHESTS = `(() => {
+  const debug = window.__battleDebug?.();
+  const state = debug?.state;
+  const openAll = debug?.openChestOfKind;
+  if (!state || typeof openAll !== "function") return { ok: false, reason: "chest-batch-api-unavailable" };
+  const before = state.chests?.length ?? 0;
+  openAll(null);
+  const remaining = state.chests?.length ?? 0;
+  return { ok: true, opened: before - remaining, remaining };
+})()`;
+
+export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns = 1, mode = "gear", confirm = false, loop = false, minAtkPct = DEFAULT_MIN_ATK_PCT, minSkillPower = DEFAULT_MIN_SKILL_POWER, log = console.log } = {}) {
   if (!confirm) throw new Error("Craft automation changes game state; rerun with --confirm to enable it");
   if (!Number.isInteger(maxRuns) || maxRuns < 1) throw new Error("maxRuns must be a positive integer");
-  if (!new Set(["gear", "charm"]).has(mode)) throw new Error("mode must be gear or charm");
+  if (!new Set(["gear", "charm", "both"]).has(mode)) throw new Error("mode must be gear, charm, or both");
 
   const results = [];
   let exitReason = loop ? "stopped-by-user" : "max-runs-reached";
   for (let run = 0; loop || run < maxRuns; run += 1) {
+    let chests = { ok: true, opened: 0, remaining: 0 };
+    if (mode !== "charm") {
+      chests = await gameAction(OPEN_PENDING_CHESTS, endpoint);
+      if (!chests?.ok) {
+        if (loop) {
+          log(`Chest batch unavailable (${chests?.reason}); checking again in 10 seconds`);
+          await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
+          continue;
+        }
+        results.push({ run: run + 1, crafted: false, reason: chests?.reason ?? "chest-batch-open-failed", chests });
+        exitReason = chests?.reason ?? "chest-batch-open-failed";
+        break;
+      }
+      if (chests.opened > 0) log(`Opened ${chests.opened} pending chests`);
+    }
     const before = await evaluateRuntime(SNAPSHOT, endpoint);
-    const groups = craftableGroupCount(before, mode);
-    if (!groups.some((group) => group.batches > 0)) {
+    const groups = craftableGroupCount(before, mode, { minAtkPct, minSkillPower });
+    const group = groups.find((candidate) => candidate.batches > 0);
+    if (!group) {
       if (!loop) {
-        results.push({ run: run + 1, crafted: false, reason: "no-safe-nine-item-group", groups });
+        results.push({ run: run + 1, crafted: false, reason: "no-safe-nine-item-group", groups, chests });
         exitReason = "no-safe-nine-item-group";
         break;
       }
@@ -127,7 +183,7 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
       continue;
     }
-    const action = await gameAction(craftUiExpression(mode), endpoint);
+    const action = await gameAction(craftUiExpression(group.mode, group.band), endpoint);
     if (!action?.ok || !action.crafted) {
       if (loop && RETRYABLE_UI_REASONS.has(action?.reason)) {
         log(`Craft menu unavailable (${action.reason}); retrying in 10 seconds`);
@@ -138,22 +194,41 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       exitReason = action?.reason ?? "craft-action-failed";
       break;
     }
-    const after = await evaluateRuntime(SNAPSHOT, endpoint);
     const beforeCount = (before.items?.length ?? 0) + (before.storage?.length ?? 0);
-    const afterCount = (after?.items?.length ?? 0) + (after?.storage?.length ?? 0);
     const beforeIds = new Set([
       ...(before.items ?? []).map((item) => item.id),
       ...(before.storage ?? []).map((item) => item.id),
     ]);
-    const newItemCount = [...(after?.items ?? []), ...(after?.storage ?? [])]
-      .filter((item) => !beforeIds.has(item.id)).length;
-    const verified = afterCount === beforeCount - (CRAFT_COST - 1) && newItemCount === 1;
-    results.push({ run: run + 1, crafted: true, slots: action.slots, verified, before, after });
+    let after = null;
+    let afterCount = beforeCount;
+    let newItemCount = 0;
+    let verified = false;
+    for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt += 1) {
+      after = await evaluateRuntime(SNAPSHOT, endpoint);
+      afterCount = (after?.items?.length ?? 0) + (after?.storage?.length ?? 0);
+      newItemCount = [...(after?.items ?? []), ...(after?.storage ?? [])]
+        .filter((item) => !beforeIds.has(item.id)).length;
+      verified = afterCount === beforeCount - (CRAFT_COST - 1) && newItemCount === 1;
+      if (verified) break;
+      await new Promise((resolve) => setTimeout(resolve, VERIFY_WAIT_MS));
+    }
     if (!verified) {
+      results.push({ run: run + 1, crafted: true, slots: action.slots, verified, before, after });
       exitReason = "post-craft-verification-failed";
       break;
     }
-    log(loop ? `Craft ${run + 1}: verified; next run in 10 seconds` : `Craft ${run + 1}/${maxRuns}: verified`);
+    if (group.mode === "gear") {
+      chests = await gameAction(OPEN_PENDING_CHESTS, endpoint);
+      if (!chests?.ok) {
+        results.push({ run: run + 1, crafted: true, slots: action.slots, verified, chests });
+        exitReason = chests?.reason ?? "chest-batch-open-failed";
+        break;
+      }
+    }
+    results.push({ run: run + 1, crafted: true, slots: action.slots, verified, chests, before, after });
+    log(loop
+      ? `Craft ${run + 1}: verified; opened ${chests.opened} chests; next run in 10 seconds`
+      : `Craft ${run + 1}/${maxRuns}: verified; opened ${chests.opened} chests`);
     if (loop) await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
   }
   log(`Craft controller exiting: ${exitReason}`);

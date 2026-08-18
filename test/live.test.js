@@ -67,3 +67,35 @@ test("estimated eggs per hour multiplies kill rate by global egg chance", () => 
   assert.equal(result.rates.killsPerMinute, 60);
   assert.equal(result.rates.eggsPerHour, result.rates.killsPerMinute * 60 * 0.001);
 });
+
+test("estimated chest rate uses kill rate and chest chance", () => {
+  const metrics = createLiveMetrics();
+  metrics.update({ timestamp: 1_000, gold: 0, totalKills: 0, party: [], chestDrop: { base: 0.045, chance: 0.09 } });
+  metrics.update({ timestamp: 61_000, gold: 0, totalKills: 60, party: [], chestDrop: { base: 0.045, chance: 0.09 } });
+
+  const result = metrics.read();
+  assert.ok(Math.abs(result.rates.estimatedChestsPerMinute - 5.4) < 1e-12);
+});
+
+test("live metrics record newly dropped eggs by rarity", () => {
+  const metrics = createLiveMetrics();
+  metrics.update({
+    timestamp: 1_000,
+    gold: 0,
+    totalKills: 0,
+    party: [],
+    eggInventory: [{ id: "egg-1", rarity: "common" }],
+  });
+  metrics.update({
+    timestamp: 31_000,
+    gold: 0,
+    totalKills: 30,
+    party: [],
+    eggInventory: [
+      { id: "egg-1", rarity: "common" },
+      { id: "egg-2", rarity: "rare" },
+    ],
+  });
+
+  assert.deepEqual(metrics.read().eggDrops, [{ timestamp: 31_000, rarity: "rare" }]);
+});
