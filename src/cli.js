@@ -2,14 +2,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 import { openArchive } from "./asar.js";
-import { BACKUP_KEY, DEFAULT_ENDPOINT, SAVE_KEY, readLocalStorage } from "./cdp.js";
-import { loadGameRuntime } from "./game-runtime.js";
+import { BACKUP_KEY, DEFAULT_ENDPOINT, SAVE_KEY, evaluateRuntime, readLocalStorage } from "./cdp.js";
 import { startConstellationViewer } from "./constellation.js";
 import { runCraftController } from "./craft-controller.js";
 import { startLiveDashboard } from "./live.js";
+import { loadGameRuntime } from "./game-runtime.js";
 import { resolvePartyAttack } from "./real-stats.js";
 import { renderReport, writeReport } from "./report.js";
 import { readSave, summarizeSave, validateSave } from "./save.js";
+import { simulateKpm } from "./simulate-kpm.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultArchive = path.resolve(projectRoot, "..", "resources", "app.asar");
@@ -22,6 +23,7 @@ Usage:
   npm start -- extract <archive-path> <output-path> [asar-path]
   npm start -- inspect-save <save-json-path>
   npm start -- party-attack <save-json-path>
+  npm start -- simulate-kpm [save-json-path] [difficulty] [stage] [--live] [--target-kpm 600] [--party-attack N] [--attacks-per-sec N]
   npm start -- export-save <output-path> [port] [backup]
   npm start -- render-report <save-json-path> [output-path]
   npm start -- live [port] [cdp-port]
@@ -33,6 +35,7 @@ Commands:
   extract       Extract one file from the archive without unpacking the archive.
   inspect-save  Validate and summarize an exported TASMON save JSON file.
   party-attack  Resolve actual party attack using the installed game data.
+  simulate-kpm  Simulate the damage and speed required to reach a target kills/minute.
   export-save   Read the save from a local DevTools port into a project file.
   render-report Generate a standalone HTML attack calculation report.
   live          Start the localhost read-only battle-rate dashboard.
@@ -107,6 +110,41 @@ async function runPartyAttack(args) {
   if (errors.length > 0) throw new Error(`Invalid save: ${errors.join("; ")}`);
   const runtime = await loadGameRuntime(defaultArchive, path.join(projectRoot, ".runtime"));
   console.log(JSON.stringify({ party: resolvePartyAttack(state, runtime) }, null, 2));
+}
+
+async function runSimulateKpm(args) {
+  const live = args.includes("--live");
+  if (live) args.splice(args.indexOf("--live"), 1);
+  const savePath = live ? null : args.shift();
+  if (!savePath && !live) throw new Error("simulate-kpm requires a JSON file path or --live");
+  const numberOption = (name, fallback) => {
+    const index = args.indexOf(name);
+    if (index === -1) return fallback;
+    const value = Number(args[index + 1]);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${name} requires a non-negative number`);
+    return value;
+  };
+  const difficulty = Number(args.shift() ?? 1);
+  const stage = Number(args.shift() ?? 9);
+  if (!Number.isInteger(difficulty) || difficulty < 0 || !Number.isInteger(stage) || stage < 1 || stage > 100) {
+    throw new Error("simulate-kpm requires difficulty >= 0 and stage between 1 and 100");
+  }
+  const state = live
+    ? JSON.parse(await evaluateRuntime("JSON.stringify(window.__battleDebug?.()?.state)"))
+    : await readSave(path.resolve(savePath));
+  const errors = validateSave(state);
+  if (errors.length > 0) throw new Error(`Invalid save: ${errors.join("; ")}`);
+  const runtime = await loadGameRuntime(defaultArchive, path.join(projectRoot, ".runtime"));
+  console.log(JSON.stringify(simulateKpm(state, runtime, {
+    difficulty,
+    stage,
+    targetKpm: numberOption("--target-kpm", 600),
+    partyAttack: numberOption("--party-attack", 0),
+    attacksPerSecond: numberOption("--attacks-per-sec", 0),
+    aoeDamage: numberOption("--aoe-damage", 0),
+    aoeCooldown: numberOption("--aoe-cooldown", 0),
+    liveStarvation: live,
+  }), null, 2));
 }
 
 async function runExportSave(args) {
@@ -207,6 +245,10 @@ async function main() {
 
   if (command === "party-attack") {
     await runPartyAttack(args);
+    return;
+  }
+  if (command === "simulate-kpm") {
+    await runSimulateKpm(args);
     return;
   }
 

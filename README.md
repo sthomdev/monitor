@@ -18,6 +18,8 @@ npm start -- list 'src/game/(battle|data|equipment|state)\.js$'
 npm start -- extract /src/game/battle.js extracted/battle.js
 npm start -- inspect-save path\to\save.json
 npm start -- party-attack path\to\save.json
+npm start -- simulate-kpm path\to\save.json 1 9 --target-kpm 600 --party-attack 100000 --attacks-per-sec 2
+npm start -- simulate-kpm --live 3 9 --target-kpm 600
 npm start -- export-save save.json
 npm start -- render-report save.json report.html
 npm start -- live
@@ -25,6 +27,8 @@ npm start -- craft 1 9222 gear --confirm
 npm start -- craft 1 9222 both --confirm --min-atk-pct 0.9 --min-skill-power 0.4
 npm start -- constellation
 ```
+
+`simulate-kpm` uses difficulty index `1` for Nightmare and stage `9` for 10-9. It reports the enemy HP, required damage per second, basic-attack-only KPM, scheduled offensive skills, and a wave-aware KPM estimate. The wave estimate applies cooldowns, initial skill delays, crits, dex attack bonus, AOE conversion, native AOE, single-target overkill rules, and the 450ms wave respawn delay. `skillInclusiveKpm` is only an optimistic DPS upper bound. `--live` reads the current in-memory battle state through CDP, avoiding a stale exported save. Use `--aoe-damage` and `--aoe-cooldown` to test an additional AOE cast.
 
 
 To generate report for active party:

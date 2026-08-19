@@ -21,7 +21,7 @@ export class AsarArchive {
     this.filePath = filePath;
     this.fileHandle = fs.openSync(filePath, "r");
     this.header = this.readHeader();
-    this.dataOffset = ASAR_HEADER_SIZE + this.header.jsonSize;
+    this.dataOffset = 8 + this.header.headerSize;
   }
 
   close() {
@@ -32,11 +32,13 @@ export class AsarArchive {
     const header = Buffer.alloc(ASAR_HEADER_SIZE);
     fs.readSync(this.fileHandle, header, 0, header.length, 0);
 
+    const headerSize = header.readUInt32LE(4);
     const jsonSize = header.readUInt32LE(12);
     const json = Buffer.alloc(jsonSize);
     fs.readSync(this.fileHandle, json, 0, json.length, ASAR_HEADER_SIZE);
 
     return {
+      headerSize,
       jsonSize,
       tree: JSON.parse(json.toString("utf8")),
     };

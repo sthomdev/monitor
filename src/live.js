@@ -3,13 +3,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateRuntime } from "./cdp.js";
-import { AWAKENING, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
+import { AWAKENING, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, RARITY_META, RARITY_ORDER, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
 
 const LEVEL_CAP = 100;
 const EMA_TIME_CONSTANT_MS = 30_000;
 const dashboardPath = fileURLToPath(new URL("../dashboard/index.html", import.meta.url));
 const attackReportPath = fileURLToPath(new URL("../report.html", import.meta.url));
 const wikiPath = fileURLToPath(new URL("../context.md", import.meta.url));
+const eggLogPath = fileURLToPath(new URL("../.runtime/egg-drops.json", import.meta.url));
 const FIRST_EGG_MULT = 25;
 const ROOKIE_EGG_MULT = 3;
 const POST_ROOKIE_EGG_MULT = 0.22;
@@ -17,6 +18,8 @@ const EQUIP_DROP_CHANCE = 0.045;
 const NORMAL_CHEST_BONUS_MULT = 1.5;
 const ROOKIE_CHEST_MULT = 1.5;
 const STAGES_PER_DIFFICULTY = 10;
+const RARE_CHOICE_BASE = 0.08;
+const RARE_CHOICE_PER_STAR = 0.012;
 
 const percent = (value) => `${Math.round((value ?? 0) * 100)}%`;
 function englishSkillDescription(skill) {
@@ -61,6 +64,45 @@ function fallbackEggDrop(state) {
   const baseMult = owned < 3 ? (owned <= 1 ? FIRST_EGG_MULT : ROOKIE_EGG_MULT) : POST_ROOKIE_EGG_MULT;
   const base = EGG_DROP_CHANCE * baseMult;
   return { base, chance: base * (1 + Math.max(0, bonus)), bonus };
+}
+
+function skillRollReference() {
+  const maxSkillStars = Math.max(...Object.keys(SKILLS).map((id) => skillStars(id)));
+  return RARITY_ORDER.map((rarity) => {
+    const stars = RARITY_META[rarity].stars;
+    const rareMaxStars = Math.min(stars + 4, maxSkillStars);
+    const rareMinStars = stars + 2;
+    const standardMaxStars = Math.min(stars + 1, maxSkillStars);
+    const standardMaxRarity = RARITY_ORDER.find((candidate) => RARITY_META[candidate].stars === standardMaxStars) ?? rarity;
+    const rareMaxRarity = RARITY_ORDER.find((candidate) => RARITY_META[candidate].stars === rareMaxStars) ?? rarity;
+    return {
+      rarity,
+      label: RARITY_META[rarity].label,
+      stars,
+      standardMaxStars,
+      standardMaxRarity,
+      rareRange: rareMinStars <= rareMaxStars ? `${rareMinStars}-${rareMaxStars}` : null,
+      rareMaxStars,
+      rareMaxRarity,
+      rareMaxLabel: RARITY_META[rareMaxRarity].label,
+      rareChoiceChance: RARE_CHOICE_BASE + stars * RARE_CHOICE_PER_STAR,
+    };
+  });
+}
+
+async function readEggLog() {
+  try {
+    const parsed = JSON.parse(await fs.readFile(eggLogPath, "utf8"));
+    return Array.isArray(parsed) ? parsed.filter((drop) => drop && Number.isFinite(drop.timestamp) && typeof drop.rarity === "string") : [];
+  } catch (error) {
+    if (error.code !== "ENOENT") console.warn(`Unable to read egg log: ${error.message}`);
+    return [];
+  }
+}
+
+async function writeEggLog(drops) {
+  await fs.mkdir(path.dirname(eggLogPath), { recursive: true });
+  await fs.writeFile(eggLogPath, `${JSON.stringify(drops, null, 2)}\n`, "utf8");
 }
 
 function fallbackGlobalBonuses(state) {
@@ -248,7 +290,7 @@ function smooth(previous, current, elapsedMs) {
   return previous + alpha * (current - previous);
 }
 
-export function createLiveMetrics() {
+export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () => {} } = {}) {
   const session = {
     startedAt: Date.now(),
     last: null,
@@ -257,7 +299,7 @@ export function createLiveMetrics() {
     experience: 0,
     experienceByMember: new Map(),
     kills: 0,
-    eggDrops: [],
+    eggDrops: [...initialEggDrops],
     elapsedMs: 0,
     ema: {
       grossGoldPerMinute: null,
@@ -298,7 +340,10 @@ export function createLiveMetrics() {
         session.kills += killsDelta;
         const previousEggs = new Set((session.last.eggInventory ?? []).map((egg) => egg.id));
         for (const egg of snapshot.eggInventory ?? []) {
-          if (!previousEggs.has(egg.id)) session.eggDrops.push({ timestamp: now, rarity: egg.rarity ?? "unknown" });
+          if (!previousEggs.has(egg.id)) {
+            session.eggDrops.push({ timestamp: now, rarity: egg.rarity ?? "unknown" });
+            persistEggDrops(session.eggDrops);
+          }
         }
         if (elapsed > 0) {
           session.ema.grossGoldPerMinute = smooth(session.ema.grossGoldPerMinute, rate(Math.max(0, goldDelta), elapsed), elapsed);
@@ -359,6 +404,7 @@ export function createLiveMetrics() {
       session.experienceByMember.clear();
       session.kills = 0;
       session.eggDrops = [];
+      persistEggDrops(session.eggDrops);
       session.elapsedMs = 0;
       session.ema.grossGoldPerMinute = null;
       session.ema.netGoldPerMinute = null;
@@ -374,8 +420,83 @@ export async function readLiveSnapshot(endpoint) {
   return evaluateRuntime(projectExpression(), endpoint);
 }
 
+async function setTurboRespawn(enabled, endpoint) {
+  return evaluateRuntime(`(() => {
+    const debug = window.__battleDebug?.();
+    const state = debug?.state;
+    if (!state) throw new Error("TASMON battle state is unavailable");
+    const existing = window.__turboRespawn;
+    if (existing) {
+      if (!${enabled}) {
+        existing.restore();
+        return false;
+      }
+      if (existing.version === 2 && typeof existing.refresh === "function") {
+        existing.refresh();
+        return { enabled: true, phase: existing.phase, keyCount: existing.keyCount };
+      }
+      existing.restore();
+    }
+    if (!${enabled}) return false;
+    const original = window.setTimeout;
+    const turbo = {
+      version: 2,
+      enabled: true,
+      restore() {
+        if (window.setTimeout === turbo.wrapper) window.setTimeout = original;
+        turbo.enabled = false;
+      },
+      stageNode(labelText) {
+        const mapTab = document.querySelector('.bar-tab[data-win="map"]');
+        let label = [...document.querySelectorAll(".portal-node-label")]
+          .find((candidate) => candidate.textContent.includes(labelText));
+        if (!label && mapTab) {
+          mapTab.click();
+          label = [...document.querySelectorAll(".portal-node-label")]
+            .find((candidate) => candidate.textContent.includes(labelText));
+        }
+        const node = label?.previousElementSibling;
+        if (!node || node.classList.contains("locked") || node.classList.contains("current")) return false;
+        node.click();
+        return true;
+      },
+      bossKeyCount() {
+        const difficulty = window.__battleDebug?.()?.difficulty;
+        return (state.keyItems ?? []).filter((key) => key.difficulty === difficulty && !key.stored).length;
+      },
+      refresh() {
+        if (!turbo.enabled) return false;
+        if (window.setTimeout !== turbo.wrapper) window.setTimeout = turbo.wrapper;
+        const keys = turbo.bossKeyCount();
+        turbo.phase = keys >= 9 ? "boss-10-10" : "farm-10-7";
+        turbo.keyCount = keys;
+        turbo.stageNode(keys >= 9 ? "[10-10]" : "[10-7]");
+        return true;
+      },
+    };
+    turbo.wrapper = function (callback, delay, ...args) {
+      const timer = original.call(this, callback, delay, ...args);
+      if (delay === 450 && turbo.enabled) {
+        for (let duplicate = 0; duplicate < 3; duplicate++) original.call(this, callback, delay, ...args);
+      }
+      return timer;
+    };
+    window.__turboRespawn = turbo;
+    window.setTimeout = turbo.wrapper;
+    turbo.refresh();
+    return { enabled: true, phase: turbo.phase, keyCount: turbo.keyCount };
+  })()`, endpoint);
+}
+
 export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endpoint } = {}) {
-  const metrics = createLiveMetrics();
+  const initialEggDrops = await readEggLog();
+  let persistChain = Promise.resolve();
+  const persistEggDrops = (drops) => {
+    persistChain = persistChain
+      .then(() => writeEggLog(drops))
+      .catch((error) => console.warn(`Unable to persist egg log: ${error.message}`));
+  };
+  const metrics = createLiveMetrics({ initialEggDrops, persistEggDrops });
   const poll = async () => {
     try {
       const snapshot = await readLiveSnapshot(endpoint);
@@ -388,6 +509,10 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
 
   await poll();
   const timer = setInterval(poll, 1000);
+  let turboEnabled = false;
+  let turboPhase = null;
+  let turboKeys = 0;
+  let turboRefreshTimer = null;
   const signatureOwners = Object.fromEntries(
     Object.entries(SPECIES)
       .filter(([, species]) => SKILLS[species.skillId]?.signature)
@@ -409,7 +534,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     const pathname = new URL(request.url, `http://${request.headers.host ?? "localhost"}`).pathname;
     if (pathname === "/api/live") {
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      response.end(JSON.stringify(metrics.read()));
+      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys }));
       return;
     }
     if (pathname === "/api/skills") {
@@ -417,10 +542,41 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
       response.end(JSON.stringify(skillCatalog));
       return;
     }
+    if (pathname === "/api/skill-roll-reference") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      response.end(JSON.stringify(skillRollReference()));
+      return;
+    }
     if (pathname === "/api/reset" && request.method === "POST") {
       metrics.reset();
       response.writeHead(204);
       response.end();
+      return;
+    }
+    if (pathname === "/api/turbo" && request.method === "POST") {
+      try {
+        turboEnabled = !turboEnabled;
+        const turbo = await setTurboRespawn(turboEnabled, endpoint);
+        turboEnabled = Boolean(turbo?.enabled ?? turbo);
+        turboPhase = turbo?.phase ?? null;
+        turboKeys = turbo?.keyCount ?? 0;
+        if (turboRefreshTimer) clearInterval(turboRefreshTimer);
+        turboRefreshTimer = turboEnabled
+          ? setInterval(async () => {
+            try {
+              const turbo = await setTurboRespawn(true, endpoint);
+              turboPhase = turbo?.phase ?? turboPhase;
+              turboKeys = turbo?.keyCount ?? turboKeys;
+            } catch {}
+          }, 30_000)
+          : null;
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify({ turbo: turboEnabled, phase: turboPhase, keyCount: turboKeys }));
+      } catch (error) {
+        turboEnabled = false;
+        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message, turbo: false }));
+      }
       return;
     }
     if (pathname === "/" || pathname === "/index.html") {
@@ -442,7 +598,10 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     response.end("Not found");
   });
 
-  server.on("close", () => clearInterval(timer));
+  server.on("close", () => {
+    clearInterval(timer);
+    if (turboRefreshTimer) clearInterval(turboRefreshTimer);
+  });
   await new Promise((resolve) => server.listen(port, host, resolve));
   return server;
 }

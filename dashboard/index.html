@@ -26,6 +26,7 @@
     .section-head .label{background:var(--blue-deep);border:2px solid var(--line);border-radius:999px;padding:5px 24px;color:var(--cream)}
     .rarity-card{border-width:2px;background:linear-gradient(145deg,#fffdf0,var(--panel2));box-shadow:0 3px 0 rgba(4,32,65,.5)}.egg-table,.table,.caps{border:3px solid var(--line);background:var(--cream);box-shadow:var(--shadow)}.egg-row,.row{background:#b6cee0}.egg-row>*,.row>*{background:var(--cream)}.egg-row.head,.row.head{color:var(--blue-deep)}
     .skill-tab{color:var(--cream);text-shadow:1px 1px 0 var(--line)}.skill-tab:hover,.skill-tab.active{color:var(--blue-deep);text-shadow:none}.skill-description{cursor:help;text-decoration:underline dotted var(--green);text-underline-offset:3px}
+    .turbo-active{background:var(--red)!important;color:#fff!important;border-color:#7d1f1f!important}
   </style>
 </head>
 <body>
@@ -34,9 +35,9 @@
       <div><div class="eyebrow">TASMON / live telemetry</div><h1>What the battle is earning.</h1><p class="sub">Read-only session measurements from the local DevTools connection.</p></div>
       <div class="status" id="status"><span class="status-dot"></span><small>CONNECTING</small></div>
     </header>
-    <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><button class="button" id="reset">Reset session</button></div>
+    <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><div><button class="button turbo" id="turbo" type="button" aria-pressed="false">Turbo</button> <button class="button" id="reset" type="button">Reset session</button></div></div>
     <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button></nav>
-    <div id="skillsPanel" class="tab-panel"><section class="section"><div class="section-head"><div class="label">Skill reference</div><div class="note">Browse by skill type</div></div><div id="skillTabs" class="skill-tabs"></div><div id="skillsContent"></div><p class="note skill-disclaimer">The listed signature species is the skill's natural owner, not its exclusive owner. Signature skills are excluded from the standard level-milestone pool, but higher-star signature skills can appear in the rare-choice slot and can also be inherited through breeding.</p></section></div>
+    <div id="skillsPanel" class="tab-panel"><section class="section"><div class="section-head"><div class="label">Skill reference</div><div class="note">Browse by skill type</div></div><div id="skillRollReference"></div><div id="skillTabs" class="skill-tabs"></div><div id="skillsContent"></div><p class="note skill-disclaimer">The listed signature species is the skill's natural owner, not its exclusive owner. Signature skills are excluded from the standard level-milestone pool, but higher-star signature skills can appear in the rare-choice slot and can also be inherited through breeding.</p></section></div>
     <div id="ratesPanel" class="tab-panel active">
     <section class="cards">
       <article class="card"><h2>Gross gold / minute</h2><div class="value amber" id="goldRate">--</div><div class="detail" id="goldTotal">Battle gains: --</div></article>
@@ -57,7 +58,7 @@
     </div>
     <div id="eggsPanel" class="tab-panel">
       <section class="egg-hero"><article class="egg-title"><div class="eyebrow">TASMON / session log</div><h2>Egg Drop<br>Summary</h2><p id="eggSessionMeta">Waiting for drops</p></article><div class="egg-summary"><article class="egg-stat"><h3>Total eggs</h3><strong id="eggTotal">0</strong></article><article class="egg-stat"><h3>Rare and above</h3><strong id="eggRareTotal">0</strong></article><article class="egg-stat"><h3>Eggs / hour</h3><strong id="eggSessionRate">--</strong></article><article class="egg-stat"><h3>Average interval</h3><strong id="eggInterval">--</strong></article></div></section>
-      <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops observed during this dashboard session</div></div><div class="rarities" id="eggRarities"></div></section>
+      <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops recorded by this dashboard, including previous runs</div></div><div class="rarities" id="eggRarities"></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop timeline</div><div class="note">Newest drops appear first</div></div><div class="egg-table" id="eggTimeline"></div></section>
       <section class="section"><div class="section-head"><div class="label">Highlights</div><div class="note">Session-derived signals</div></div><div class="highlights"><article class="highlight"><h3>First drop</h3><strong id="eggFirstDrop">--</strong></article><article class="highlight"><h3>Best quality</h3><strong id="eggBestQuality">--</strong></article><article class="highlight"><h3>Most common</h3><strong id="eggMostCommon">--</strong></article></div></section>
     </div>
@@ -105,6 +106,11 @@
         const data = await response.json();
         const latest = data.latest;
         renderEggs(data);
+        $("turbo").classList.toggle("turbo-active", data.turbo === true);
+        $("turbo").setAttribute("aria-pressed", String(data.turbo === true));
+        $("turbo").textContent = data.turbo === true
+          ? `Turbo ${data.turboPhase === "boss-10-10" ? "10-10" : "10-7"} (${data.turboKeys}/9)`
+          : "Turbo";
         $("status").classList.toggle("offline", !data.connected);
         $("status").innerHTML = `<span class="status-dot"></span><small>${data.connected ? "LIVE / READ-ONLY" : "OFFLINE"}</small>`;
         $("goldRate").textContent = `${number(data.rates.grossGoldPerMinute)} G`;
@@ -151,6 +157,11 @@
       ["nuke:multi", "Multi-hit"], ["nuke:execute", "Execute"], ["nuke:drain", "Drain"],
       ["buff", "Buff"], ["guard", "Guard"], ["heal", "Heal"],
     ];
+    const rarityNames = { common: "Common", rare: "Rare", ultra: "Ultra", legend: "Legend", immortal: "Immortal", arcana: "Arcana", beyond: "Beyond", century: "Century", cosmic: "Cosmic", celestial: "Celestial" };
+    const renderSkillRollReference = (rows) => {
+      const reference = $("skillRollReference");
+      reference.innerHTML = `<article class="wiki-card wiki-wide"><h3>Starting rarity and skill ceilings</h3><p class="skill-note">Standard rolls reach up to +1 star. The rare-choice chance is the chance that one slot becomes a rare slot; the exact skill still depends on role, element, learned skills, and the deterministic roll.</p><div class="skill-table"><div class="skill-row head"><span>Starting rarity</span><span>Standard max</span><span>Rare slot range</span><span>Highest rare skill</span><span>Rare slot chance</span></div>${rows.map((row) => `<div class="skill-row"><strong>${rarityNames[row.rarity]}</strong><span>${rarityNames[row.standardMaxRarity]} (${row.standardMaxStars})</span><span>${row.rareRange ? `${row.rareRange} stars` : "None available"}</span><span>${row.rareRange ? `${rarityNames[row.rareMaxRarity]} (${row.rareMaxStars} stars)` : "None available"}</span><strong>${row.rareRange ? `${Math.round(row.rareChoiceChance * 1000) / 10}%` : "N/A"}</strong></div>`).join("")}</div></article>`;
+    };
     const skillCard = document.querySelector(".wiki-wide");
     if (skillCard) $("skillsContent").append(skillCard);
     const renderSkillCatalog = (catalog) => {
@@ -194,11 +205,17 @@
       renderCategory(skillCategories[0][0]);
     };
     fetch("/api/skills").then((response) => response.ok ? response.json() : Promise.reject(new Error("Skill catalog unavailable"))).then(renderSkillCatalog).catch(() => {});
+    fetch("/api/skill-roll-reference").then((response) => response.ok ? response.json() : Promise.reject(new Error("Skill roll reference unavailable"))).then(renderSkillRollReference).catch(() => {});
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button === tab));
       document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));
     }));
     $("reset").addEventListener("click", async () => { await fetch("/api/reset", { method: "POST" }); refresh(); });
+    $("turbo").addEventListener("click", async () => {
+      const response = await fetch("/api/turbo", { method: "POST" });
+      if (!response.ok) throw new Error((await response.json()).error ?? "Unable to toggle Turbo");
+      refresh();
+    });
     refresh(); setInterval(refresh, 1000);
   </script>
 </body>

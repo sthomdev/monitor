@@ -5,7 +5,7 @@ const CRAFT_COST = 9;
 const WAIT_MS = 150;
 const VERIFY_WAIT_MS = 100;
 const VERIFY_ATTEMPTS = 10;
-const LOOP_INTERVAL_MS = 5_000;
+const LOOP_INTERVAL_MS = 2_000;
 const DEFAULT_MIN_ATK_PCT = 0.90;
 const DEFAULT_MIN_SKILL_POWER = 0.40;
 const RETRYABLE_UI_REASONS = new Set([
@@ -147,6 +147,51 @@ const OPEN_PENDING_CHESTS = `(() => {
   return { ok: true, opened: before - remaining, remaining };
 })()`;
 
+const ALCHEMIZE_LOW_EGGS = `(async () => {
+  const text = (node) => node?.textContent?.replace(/\\s+/g, " ").trim() ?? "";
+  const visible = (node) => {
+    if (!node || node.classList.contains("hidden")) return false;
+    const style = getComputedStyle(node);
+    const box = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+  };
+  const debug = window.__battleDebug?.();
+  const state = debug?.state;
+  if (!state) return { ok: false, reason: "battle-state-unavailable" };
+  const before = (state.eggs ?? []).filter((egg) => ["common", "rare"].includes(egg.rarity)).length;
+  if (before === 0) return { ok: true, count: 0 };
+  let body = document.querySelector("#cube-body");
+  if (!visible(body)) {
+    const tab = document.querySelector('.bar-tab[data-win="compound"]');
+    if (!tab) return { ok: false, reason: "compound-tab-not-found" };
+    tab.click();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    body = document.querySelector("#cube-body");
+  }
+  if (!visible(body)) return { ok: false, reason: "craft-window-not-visible" };
+  const modeSel = body.querySelector("select.cube-band");
+  if (!modeSel) return { ok: false, reason: "alchemy-mode-not-found" };
+  if (modeSel.value !== "alchemy") {
+    if (![...modeSel.options].some((option) => option.value === "alchemy")) return { ok: false, reason: "alchemy-mode-not-found" };
+    modeSel.value = "alchemy";
+    modeSel.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  body = document.querySelector("#cube-body");
+  let eggButton = null;
+  for (let attempt = 0; attempt < 5 && !eggButton; attempt += 1) {
+    eggButton = [...(body?.querySelectorAll("button") ?? [])]
+      .find((button) => visible(button) && ["コモン/レアの卵", "Common/Rare eggs"].some((label) => text(button).includes(label)));
+    if (!eggButton) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!eggButton) return { ok: false, reason: "egg-alchemy-button-not-found" };
+  if (eggButton.disabled) return { ok: false, reason: "egg-alchemy-button-disabled", count: before };
+  eggButton.click();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const after = (state.eggs ?? []).filter((egg) => ["common", "rare"].includes(egg.rarity)).length;
+  return { ok: after === 0, count: before - after, remaining: after };
+})()`;
+
 export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns = 1, mode = "gear", confirm = false, loop = false, minAtkPct = DEFAULT_MIN_ATK_PCT, minSkillPower = DEFAULT_MIN_SKILL_POWER, log = console.log } = {}) {
   if (!confirm) throw new Error("Craft automation changes game state; rerun with --confirm to enable it");
   if (!Number.isInteger(maxRuns) || maxRuns < 1) throw new Error("maxRuns must be a positive integer");
@@ -217,7 +262,14 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       exitReason = "post-craft-verification-failed";
       break;
     }
+    let alchemy = { ok: true, count: 0 };
     if (group.mode === "gear") {
+      alchemy = await gameAction(ALCHEMIZE_LOW_EGGS, endpoint);
+      if (!alchemy?.ok) {
+        results.push({ run: run + 1, crafted: true, slots: action.slots, verified, alchemy, chests });
+        exitReason = alchemy?.reason ?? "egg-alchemy-failed";
+        break;
+      }
       chests = await gameAction(OPEN_PENDING_CHESTS, endpoint);
       if (!chests?.ok) {
         results.push({ run: run + 1, crafted: true, slots: action.slots, verified, chests });
@@ -225,10 +277,11 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
         break;
       }
     }
-    results.push({ run: run + 1, crafted: true, slots: action.slots, verified, chests, before, after });
+    results.push({ run: run + 1, crafted: true, slots: action.slots, verified, alchemy, chests, before, after });
+    const eggMessage = group.mode === "gear" ? `; alchemized ${alchemy.count} common/rare eggs` : "";
     log(loop
-      ? `Craft ${run + 1}: verified; opened ${chests.opened} chests; next run in 10 seconds`
-      : `Craft ${run + 1}/${maxRuns}: verified; opened ${chests.opened} chests`);
+      ? `Craft ${run + 1}: verified${eggMessage}; opened ${chests.opened} chests; next run in 10 seconds`
+      : `Craft ${run + 1}/${maxRuns}: verified${eggMessage}; opened ${chests.opened} chests`);
     if (loop) await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
   }
   log(`Craft controller exiting: ${exitReason}`);

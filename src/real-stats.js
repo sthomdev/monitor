@@ -20,7 +20,31 @@ function pinnacleHealthMultiplier(monster, table) {
 
 function baseSkill(monster, data) {
   const species = data.SPECIES[monster.speciesId];
-  return data.SKILLS[species?.skillId] ?? null;
+  return effectiveSkill(monster, data.SKILLS[species?.skillId], data);
+}
+
+function effectiveSkill(monster, base, data) {
+  if (!base) return null;
+  let skill = base;
+  if (base.signature && Array.isArray(base.tiers)) {
+    const tier = data.JOBS[monster.job]?.tier >= 3 ? 2 : 1;
+    const selected = base.tiers[Math.min(tier, base.tiers.length - 1)];
+    if (selected) {
+      skill = {
+        ...skill,
+        name: selected.name,
+        cooldown: selected.cooldown,
+        active: { ...skill.active, power: selected.power },
+      };
+    }
+  }
+  const awakening = data.AWAKENING?.skill?.[monster.awakening ?? 0];
+  if (!awakening) return skill;
+  return {
+    ...skill,
+    cooldown: Math.round(skill.cooldown * awakening.cooldown * 10) / 10,
+    active: { ...skill.active, power: skill.active.power * awakening.power },
+  };
 }
 
 function equippedSkillIds(monster, data) {
@@ -31,8 +55,7 @@ function equippedSkillIds(monster, data) {
 }
 
 function skillPowerMultiplier(monster, skill, data) {
-  const awakening = data.AWAKENING?.skill?.[monster.awakening ?? 0];
-  return (awakening?.power ?? 1) * (skill?.active?.power ?? 0);
+  return skill?.active?.power ?? 0;
 }
 
 function resolveMonsterSkills(monster, attack, runtime) {
@@ -42,14 +65,19 @@ function resolveMonsterSkills(monster, attack, runtime) {
     (monster.perks ?? []).reduce((total, perk) => total + (data.PERKS[perk.id]?.stat?.skillPower ?? 0), 0) +
     data.jobStat(monster, "skillPower");
   return equippedSkillIds(monster, data).map((id) => {
-    const skill = data.SKILLS[id];
+    const skill = effectiveSkill(monster, data.SKILLS[id], data);
     const type = skill.active?.type ?? "unknown";
     const power = skillPowerMultiplier(monster, skill, data);
     const directDamage = type === "nuke" ? Math.round(attack * power * (1 + skillPowerBonus)) : null;
     return {
       id,
       name: skill.name ?? id,
+      element: data.SPECIES[monster.speciesId]?.element ?? null,
       type,
+      kind: skill.active?.kind ?? "single",
+      aoeConversion: equipment.equipStat(monster, "skillAoe"),
+      hits: skill.active?.hits ?? 1,
+      duration: skill.active?.duration ?? 0,
       power,
       cooldown: skill.cooldown ?? null,
       skillPowerBonus,
