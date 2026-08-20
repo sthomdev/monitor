@@ -27,6 +27,7 @@
     .rarity-card{border-width:2px;background:linear-gradient(145deg,#fffdf0,var(--panel2));box-shadow:0 3px 0 rgba(4,32,65,.5)}.egg-table,.table,.caps{border:3px solid var(--line);background:var(--cream);box-shadow:var(--shadow)}.egg-row,.row{background:#b6cee0}.egg-row>*,.row>*{background:var(--cream)}.egg-row.head,.row.head{color:var(--blue-deep)}
     .skill-tab{color:var(--cream);text-shadow:1px 1px 0 var(--line)}.skill-tab:hover,.skill-tab.active{color:var(--blue-deep);text-shadow:none}.skill-description{cursor:help;text-decoration:underline dotted var(--green);text-underline-offset:3px}
     .turbo-active{background:var(--red)!important;color:#fff!important;border-color:#7d1f1f!important}
+    .awaken-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.awaken-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font:700 11px Consolas,monospace;text-transform:uppercase}.awaken-controls select{min-width:240px;border:2px solid var(--line);background:var(--cream);color:var(--ink);padding:9px}.awaken-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}.awaken-summary article{border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px}.awaken-summary strong{display:block;color:var(--blue-deep);font:700 1.5rem Consolas,monospace}.awaken-summary span{color:var(--muted);font-size:12px}.awaken-table{margin-top:16px}.awaken-note{color:var(--muted);font-size:13px}.awaken-empty{border:2px dashed var(--line);padding:18px;color:var(--muted);background:var(--panel)}
   </style>
 </head>
 <body>
@@ -36,7 +37,7 @@
       <div class="status" id="status"><span class="status-dot"></span><small>CONNECTING</small></div>
     </header>
     <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><div><button class="button turbo" id="turbo" type="button" aria-pressed="false">Turbo</button> <button class="button" id="reset" type="button">Reset session</button></div></div>
-    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button></nav>
+    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button><button class="tab" data-tab="awakeningsPanel">Awakenings</button></nav>
     <div id="skillsPanel" class="tab-panel"><section class="section"><div class="section-head"><div class="label">Skill reference</div><div class="note">Browse by skill type</div></div><div id="skillRollReference"></div><div id="skillTabs" class="skill-tabs"></div><div id="skillsContent"></div><p class="note skill-disclaimer">The listed signature species is the skill's natural owner, not its exclusive owner. Signature skills are excluded from the standard level-milestone pool, but higher-star signature skills can appear in the rare-choice slot and can also be inherited through breeding.</p></section></div>
     <div id="ratesPanel" class="tab-panel active">
     <section class="cards">
@@ -61,6 +62,14 @@
       <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops recorded by this dashboard, including previous runs</div></div><div class="rarities" id="eggRarities"></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop timeline</div><div class="note">Newest drops appear first</div></div><div class="egg-table" id="eggTimeline"></div></section>
       <section class="section"><div class="section-head"><div class="label">Highlights</div><div class="note">Session-derived signals</div></div><div class="highlights"><article class="highlight"><h3>First drop</h3><strong id="eggFirstDrop">--</strong></article><article class="highlight"><h3>Best quality</h3><strong id="eggBestQuality">--</strong></article><article class="highlight"><h3>Most common</h3><strong id="eggMostCommon">--</strong></article></div></section>
+    </div>
+    <div id="awakeningsPanel" class="tab-panel">
+      <section class="section"><div class="section-head"><div class="label">Awakening planner</div><div class="note">Choose the highest fodder rarity to spend</div></div>
+        <p class="awaken-note">Same-species fodder guarantees a tier in-game. Other fodder contributes shards toward the ritual's 90% chance cap. The planner minimizes common-equivalent cost using only the selected rarity tier or lower.</p>
+        <div class="awaken-controls"><label for="awakeningTarget">Target immortal+ mon<select id="awakeningTarget"></select></label><label for="awakeningMaxRarity">Max fodder rarity<select id="awakeningMaxRarity"></select></label><button class="button" id="awakeningRefresh" type="button">Refresh inventory</button></div>
+        <div class="awaken-summary"><article><span>Current tier</span><strong id="awakeningCurrent">--</strong></article><article><span>Next tier</span><strong id="awakeningNext">--</strong></article><article><span>Required shards</span><strong id="awakeningNeed">--</strong></article><article><span>Required fodder</span><strong id="awakeningCount">--</strong></article><article><span>Success chance</span><strong id="awakeningChance">--</strong></article></div>
+        <div class="table awaken-table" id="awakeningPlan"></div>
+      </section>
     </div>
     <p class="note warning" id="warning">Rates begin after the first two samples.</p>
   </main>
@@ -111,6 +120,9 @@
         $("turbo").textContent = data.turbo === true
           ? `Turbo ${data.turboPhase === "boss-10-10" ? "10-10" : "10-7"} (${data.turboKeys}/9)`
           : "Turbo";
+        $("turbo").title = data.turbo === true
+          ? `Refreshes: ${data.turboRefreshCount ?? 0}; last action: ${data.turboLastAction ?? "none"}; last refresh: ${data.turboLastRefreshAt ? new Date(data.turboLastRefreshAt).toLocaleTimeString() : "none"}`
+          : "Enable Turbo";
         $("status").classList.toggle("offline", !data.connected);
         $("status").innerHTML = `<span class="status-dot"></span><small>${data.connected ? "LIVE / READ-ONLY" : "OFFLINE"}</small>`;
         $("goldRate").textContent = `${number(data.rates.grossGoldPerMinute)} G`;
@@ -148,7 +160,13 @@
           $("wave").textContent = `Kills ${latest.killsInStage}`;
           $("party").innerHTML = `<div class="row head"><span>Tasmon</span><span>Level</span><span>Current XP</span><span>XP/min</span><span>Time to level</span></div>` + latest.party.map((member) => { const xpRate = data.rates.experiencePerMember?.[member.id]; return `<div class="row"><strong>${member.id}</strong><span>Lv ${member.level}</span><span>${number(member.exp, 0)}</span><strong>${number(xpRate)}</strong><strong>${timeToLevel(member, xpRate)}</strong></div>`; }).join("");
         }
-        $("warning").textContent = data.error ? data.error : data.elapsedMs < 2000 ? "Rates begin after the first two samples." : "Rates use a 30-second EMA. Gross gold counts positive gold deltas; net gold includes spending.";
+        $("warning").textContent = data.error
+          ? data.error
+          : data.turboLastError
+            ? `Turbo refresh error: ${data.turboLastError}`
+            : data.turbo === true
+              ? `Turbo refreshes: ${data.turboRefreshCount ?? 0}; last action: ${data.turboLastAction ?? "none"}`
+              : data.elapsedMs < 2000 ? "Rates begin after the first two samples." : "Rates use a 30-second EMA. Gross gold counts positive gold deltas; net gold includes spending.";
         $("warning").classList.toggle("error", Boolean(data.error));
       } catch (error) { $("warning").textContent = error.message; $("warning").classList.add("error"); }
     }
@@ -206,6 +224,49 @@
     };
     fetch("/api/skills").then((response) => response.ok ? response.json() : Promise.reject(new Error("Skill catalog unavailable"))).then(renderSkillCatalog).catch(() => {});
     fetch("/api/skill-roll-reference").then((response) => response.ok ? response.json() : Promise.reject(new Error("Skill roll reference unavailable"))).then(renderSkillRollReference).catch(() => {});
+    const awakeningRarity = { common: 1, rare: 2, ultra: 3, legend: 4, immortal: 5, arcana: 6, beyond: 7, century: 8, cosmic: 9, celestial: 10 };
+    let awakeningData = null;
+    const awakeningCost = (target, food) => {
+      const stars = awakeningRarity[food.rarity] ?? 1;
+      const targetStars = awakeningRarity[target.rarity] ?? 1;
+      return stars * (1 + Math.max(0, food.level - 1) * 0.02) * (1 + food.awakening) * Math.pow(0.6, Math.max(0, targetStars - stars));
+    };
+    const awakeningPlan = (target) => {
+      const level = target.awakening;
+      if (level >= awakeningData.max) return { foods: [], chance: 0, next: level, need: 0 };
+      const need = awakeningData.needs[level] ?? 216;
+      const maxRarity = $("awakeningMaxRarity").value || "legend";
+      const targetRank = awakeningRarity[target.rarity] ?? 1;
+      const maxRank = awakeningRarity[maxRarity] ?? awakeningRarity.legend;
+      const ranked = awakeningData.fodder.filter((food) => food.id !== target.id && (awakeningRarity[food.rarity] ?? 1) <= maxRank && (awakeningRarity[food.rarity] ?? 1) < targetRank).map((food) => ({ food, shards: awakeningCost(target, food), cost: Math.pow(2, (awakeningRarity[food.rarity] ?? 1) - 1) })).sort((a, b) => (a.cost / a.shards) - (b.cost / b.shards) || b.shards - a.shards);
+      const foods = [];
+      let shards = 0;
+      for (const entry of ranked) {
+        foods.push(entry.food);
+        shards += entry.shards;
+        if (shards >= need) break;
+      }
+      const chance = Math.min(awakeningData.maxChance, shards / need);
+      return { foods, chance, next: Math.min(awakeningData.max, level + (chance > 0 ? 1 : 0)), need };
+    };
+    const renderAwakening = () => {
+      const select = $("awakeningTarget");
+      const target = awakeningData?.targets.find((entry) => entry.id === select.value) ?? awakeningData?.targets[0];
+      if (!target) { $("awakeningPlan").innerHTML = `<div class="awaken-empty">No immortal+ monsters are currently available.</div>`; return; }
+      select.value = target.id;
+      const plan = awakeningPlan(target);
+      $("awakeningCurrent").textContent = `Awakening ${target.awakening}`;
+      $("awakeningNext").textContent = plan.next === target.awakening ? "MAX" : `Awakening ${plan.next}`;
+      $("awakeningNeed").textContent = number(plan.need, 0);
+      $("awakeningCount").textContent = `${plan.foods.length} mons`;
+      $("awakeningChance").textContent = `${number(plan.chance * 100, 1)}%`;
+      $("awakeningPlan").innerHTML = plan.foods.length ? `<div class="row head"><span>Fodder</span><span>Rarity</span><span>Level</span><span>Awakening</span><span>Shard value</span></div>${plan.foods.map((food) => `<div class="row"><strong>${food.name}</strong><span>${food.rarity}</span><span>${food.level}</span><span>${food.awakening}</span><span>${number(awakeningCost(target, food), 1)}</span></div>`).join("")}<p class="awaken-note">Need ${number(plan.need, 0)} shards; selected fodder contributes ${number(plan.foods.reduce((sum, food) => sum + awakeningCost(target, food), 0), 1)}. Fodder ceiling: ${$("awakeningMaxRarity").selectedOptions[0]?.textContent ?? "Legend"}. Same-species copies are not selected by this lower-rarity planner because the target species is ${target.name}.</p>` : `<div class="awaken-empty">This monster is at the maximum awakening tier or no eligible fodder is available below the target's rarity.</div>`;
+    };
+    const loadAwakenings = () => fetch(`/api/awakenings?t=${Date.now()}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Awakening inventory unavailable"))).then((data) => { awakeningData = data; const select = $("awakeningTarget"); select.innerHTML = data.targets.map((target) => `<option value="${target.id}">${target.name} · ${target.rarity} · Aw ${target.awakening}</option>`).join(""); const maxRarity = $("awakeningMaxRarity"); if (!maxRarity.options.length) maxRarity.innerHTML = Object.entries(awakeningRarity).map(([rarity]) => `<option value="${rarity}">${rarity[0].toUpperCase()}${rarity.slice(1)}</option>`).join(""); maxRarity.value = maxRarity.value || "legend"; renderAwakening(); }).catch((error) => { $("awakeningPlan").innerHTML = `<div class="awaken-empty">${error.message}</div>`; });
+    $("awakeningTarget").addEventListener("change", renderAwakening);
+    $("awakeningMaxRarity").addEventListener("change", renderAwakening);
+    $("awakeningRefresh").addEventListener("click", loadAwakenings);
+    loadAwakenings();
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button === tab));
       document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));

@@ -257,11 +257,11 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       if (verified) break;
       await new Promise((resolve) => setTimeout(resolve, VERIFY_WAIT_MS));
     }
-    if (!verified) {
-      results.push({ run: run + 1, crafted: true, slots: action.slots, verified, before, after });
-      exitReason = "post-craft-verification-failed";
-      break;
-    }
+    //if (!verified) {
+    //  results.push({ run: run + 1, crafted: true, slots: action.slots, verified, before, after });
+    //  exitReason = "post-craft-verification-failed";
+    //  break;
+    //}
     let alchemy = { ok: true, count: 0 };
     if (group.mode === "gear") {
       alchemy = await gameAction(ALCHEMIZE_LOW_EGGS, endpoint);

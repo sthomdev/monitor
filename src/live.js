@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateRuntime } from "./cdp.js";
-import { AWAKENING, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, RARITY_META, RARITY_ORDER, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
+import { AWAKENING, AWAKEN_MAX, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, RARITY_META, RARITY_ORDER, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
 
 const LEVEL_CAP = 100;
 const EMA_TIME_CONSTANT_MS = 30_000;
@@ -275,6 +275,22 @@ function projectExpression() {
   })()`;
 }
 
+function awakeningExpression() {
+  const speciesMeta = Object.fromEntries(Object.entries(SPECIES).map(([id, species]) => [id, { rarity: species.rarity ?? "common" }]));
+  return `(() => {
+    const state = window.__battleDebug?.()?.state;
+    if (!state) return null;
+    const speciesMeta = ${JSON.stringify(speciesMeta)};
+    const monsters = Object.entries(state.monsters ?? {}).map(([id, monster]) => ({
+      id, speciesId: monster.speciesId, fav: Boolean(monster.fav), name: (monster.speciesId ?? "unknown").replace(/(^|[\\s_-])([a-z])/g, (_, prefix, letter) => prefix + letter.toUpperCase()),
+      rarity: speciesMeta[monster.speciesId]?.rarity ?? "common", level: monster.level ?? 1, awakening: monster.awakening ?? 0,
+    }));
+    return { max: ${AWAKEN_MAX}, needs: [12, 18, 48, 72, 144, 216], gapFactor: 0.6, maxChance: 0.9,
+      targets: monsters.filter((monster) => ["immortal", "arcana", "beyond", "century", "cosmic", "celestial"].includes(monster.rarity)),
+      fodder: monsters.filter((monster) => !monster.fav && ["common", "rare", "ultra", "legend", "immortal", "arcana", "beyond", "century", "cosmic", "celestial"].includes(monster.rarity)) };
+  })()`;
+}
+
 function progressOf(member) {
   if (member.level >= LEVEL_CAP) return totalExpAt(LEVEL_CAP);
   return totalExpAt(member.level) + member.exp;
@@ -535,6 +551,17 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     if (pathname === "/api/live") {
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
       response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys }));
+      return;
+    }
+    if (pathname === "/api/awakenings") {
+      try {
+        const data = await evaluateRuntime(awakeningExpression(), endpoint);
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify(data));
+      } catch (error) {
+        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message }));
+      }
       return;
     }
     if (pathname === "/api/skills") {
