@@ -23,9 +23,24 @@ npm start -- simulate-kpm --live 3 9 --target-kpm 600
 npm start -- export-save save.json
 npm start -- render-report save.json report.html
 npm start -- live
+npm start -- turbo
 npm start -- craft 1 9222 gear --confirm
 npm start -- craft 1 9222 both --confirm --min-atk-pct 0.9 --min-skill-power 0.4
 npm start -- constellation
+```
+
+## Turbo Loop
+
+With the live dashboard running, post to its turbo endpoint immediately and then every 10 seconds:
+
+```powershell
+npm start -- turbo
+```
+
+Pass a different endpoint as the optional argument when needed:
+
+```powershell
+npm start -- turbo http://127.0.0.1:4173/api/turbo
 ```
 
 `simulate-kpm` uses difficulty index `1` for Nightmare and stage `9` for 10-9. It reports the enemy HP, required damage per second, basic-attack-only KPM, scheduled offensive skills, and a wave-aware KPM estimate. The wave estimate applies cooldowns, initial skill delays, crits, dex attack bonus, AOE conversion, native AOE, single-target overkill rules, and the 450ms wave respawn delay. `skillInclusiveKpm` is only an optimistic DPS upper bound. `--live` reads the current in-memory battle state through CDP, avoiding a stale exported save. Use `--aoe-damage` and `--aoe-cooldown` to test an additional AOE cast.
@@ -79,7 +94,7 @@ node src/cli.js craft 5 9222 both --confirm
 node src/cli.js craft 1 9222 gear --confirm --loop
 ```
 
-Before each run it reads the live debug state, requires a safe group of nine unlocked, unequipped items, and reports an explicit `exitReason` when it stops. `both` mode chooses between eligible gear and charm batches, keeping the lanes separate. Immortal gear is eligible unless its combined `atkPct` is greater than `0.90` and its combined `skillPower` is greater than `0.40`; those values are summed from the item's `opts` and `enhances` arrays and are preserved from crafting. Override the defaults with `--min-atk-pct` and `--min-skill-power` (values are decimal fractions, so 90% is `0.9`). Gear-capable modes batch-open all pending common, rare, and boss chests through the game's existing chest API at the start of every iteration, including when no safe craft group exists, and checks again after a verified gear craft. Without `--confirm`, it refuses to run because crafting changes the live game state.
+Before each run it reads the live debug state, requires a safe group of nine unlocked, unequipped items, and reports an explicit `exitReason` when it stops. If the active inventory has no safe batch, it checks storage and enables the game's existing `Include storage items` control when a safe storage-backed batch is available. `both` mode chooses between eligible gear and charm batches, keeping the lanes separate. Immortal gear is eligible unless its combined `atkPct` is greater than `0.90` and its combined `skillPower` is greater than `0.40`; those values are summed from the item's `opts` and `enhances` arrays and are preserved from crafting. Override the defaults with `--min-atk-pct` and `--min-skill-power` (values are decimal fractions, so 90% is `0.9`). Gear-capable modes batch-open all pending common, rare, and boss chests through the game's existing chest API at the start of every iteration, including when no safe craft group exists, and checks again after a verified gear craft. Without `--confirm`, it refuses to run because crafting changes the live game state.
 
 Add `--loop` to repeat verified crafts every 10 seconds. The loop stops when no safe nine-item group remains or any controller check fails. Press `Ctrl+C` to stop it manually.
 
@@ -92,6 +107,8 @@ node src/cli.js live
 ```
 
 Open `http://127.0.0.1:4173`. The dashboard samples a narrow projection from `window.__battleDebug()` once per second through CDP. It reports gross battle gold per minute, net gold per minute, party experience per minute, kills per minute, estimated chests per minute, the uncapped summed party `chestBonus`, current stage, and current party progress. The `Egg drops` tab records newly observed egg IDs and rarities for the dashboard session, with rarity percentages, a newest-first timeline, eggs/hour, average interval, and best/common rarity highlights. Estimated chests per minute is the kill rate multiplied by the current effective normal chest-drop chance; it does not modify live state. Gross gold counts positive gold changes; net gold also includes spending. The dashboard binds to localhost and does not modify the game archive, renderer code, Local Storage, or save data.
+
+The `Awakenings` tab groups duplicate monsters by species. Choose the monster to keep, then compare two plans: `Safe path` uses low-value same-species copies for guaranteed stages, while `Cheapest path` spends low-cost non-safe fodder on earlier chance rolls and preserves same-species copies for later guaranteed stages. `Use this plan` applies either recommendation to the existing batch selection, which can still be adjusted manually. Favorites, party members, and expedition monsters are protected. The dashboard drives the game's existing Compound/Awakening UI through CDP, so the game remains responsible for validation, consumption, RNG, saving, and inventory redraw. The read-only inventory projection is available at `GET /api/awakenings`; confirmed actions use `POST /api/awaken` with `{ "targetId": "...", "foodIds": ["..."] }`.
 
 ## Constellation Viewer
 

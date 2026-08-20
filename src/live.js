@@ -275,20 +275,61 @@ function projectExpression() {
   })()`;
 }
 
+const ENGLISH_SPECIES_NAMES = {
+  abyssaltoad: "Abyssal Toad", abyssfox: "Abyss Fox", abysswitch: "Abyss Witch", archermouse: "Archer Mouse",
+  auradrake: "Aura Drake", blazegecko: "Blaze Gecko", bonemonarch: "Bone Monarch", blossompot: "Blossom Pot",
+  darkbehemoth: "Dark Behemoth", darkknight: "Dark Knight", drakelord: "Drake Lord", dryadqueen: "Dryad Queen",
+  emberdrake: "Ember Drake", flameogre: "Flame Ogre", frostdrake: "Frost Drake", frostwolf: "Frost Wolf",
+  gaiaturtle: "Gaia Turtle", galebird: "Gale Bird", galewolf: "Gale Wolf", gargoyle: "Gargoyle",
+  generalmouse: "General Mouse", glacierturtle: "Glacier Turtle", griffon: "Griffon", gusthawk: "Gust Hawk",
+  haloangel: "Halo Angel", heromouse: "Hero Mouse", infernoknight: "Inferno Knight", jadeogre: "Jade Ogre",
+  lavaserpent: "Lava Serpent", leafmouse: "Leaf Mouse", luminfairy: "Lumin Fairy", lunarfox: "Lunar Fox",
+  magmagolem: "Magma Golem", magmafox: "Magma Fox", mistraven: "Mist Raven", nightraven: "Night Raven",
+  phoenix: "Phoenix", pinkfairy: "Pink Fairy", pyrebird: "Pyre Bird", royalgriffon: "Royal Griffon",
+  shieldmouse: "Shield Mouse", siren: "Siren", solarcat: "Solar Cat", stormpaladin: "Storm Paladin",
+  sunblossom: "Sun Blossom", sylphdrake: "Sylph Drake", tempestgecko: "Tempest Gecko", terrashell: "Terra Shell",
+  thornshell: "Thorn Shell", thunderbird: "Thunder Bird", titanmole: "Titan Mole", valkyrie: "Valkyrie",
+  voidbehemoth: "Void Behemoth", voidcat: "Void Cat", voltgecko: "Volt Gecko", worldsprout: "World Sprout",
+};
+
+function englishSpeciesName(id) {
+  return ENGLISH_SPECIES_NAMES[id] ?? String(id ?? "Unknown")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function awakeningExpression() {
-  const speciesMeta = Object.fromEntries(Object.entries(SPECIES).map(([id, species]) => [id, { rarity: species.rarity ?? "common" }]));
+  const speciesMeta = Object.fromEntries(Object.entries(SPECIES).map(([id, species]) => [id, { name: englishSpeciesName(id), rarity: species.rarity ?? "common" }]));
   return `(() => {
     const state = window.__battleDebug?.()?.state;
     if (!state) return null;
     const speciesMeta = ${JSON.stringify(speciesMeta)};
+    const party = new Set(state.party ?? []);
+    const expeditions = (state.expeditions ?? []).flatMap((group) => Array.isArray(group) ? group : (group.members ?? []));
     const monsters = Object.entries(state.monsters ?? {}).map(([id, monster]) => ({
-      id, speciesId: monster.speciesId, fav: Boolean(monster.fav), name: (monster.speciesId ?? "unknown").replace(/(^|[\\s_-])([a-z])/g, (_, prefix, letter) => prefix + letter.toUpperCase()),
+      id, speciesId: monster.speciesId, fav: Boolean(monster.fav), party: party.has(id), expedition: expeditions.includes(id),
+      name: speciesMeta[monster.speciesId]?.name ?? monster.speciesId ?? "unknown",
       rarity: speciesMeta[monster.speciesId]?.rarity ?? "common", level: monster.level ?? 1, awakening: monster.awakening ?? 0,
+      shiny: Boolean(monster.shiny), job: monster.job ?? null, equipmentCount: (monster.equipment ?? []).length,
     }));
     return { max: ${AWAKEN_MAX}, needs: [12, 18, 48, 72, 144, 216], gapFactor: 0.6, maxChance: 0.9,
-      targets: monsters.filter((monster) => ["immortal", "arcana", "beyond", "century", "cosmic", "celestial"].includes(monster.rarity)),
-      fodder: monsters.filter((monster) => !monster.fav && ["common", "rare", "ultra", "legend", "immortal", "arcana", "beyond", "century", "cosmic", "celestial"].includes(monster.rarity)) };
+      monsters,
+      targets: monsters.filter((monster) => !monster.expedition),
+      fodder: monsters.filter((monster) => !monster.fav && !monster.party && !monster.expedition) };
   })()`;
+}
+
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      try { resolve(body ? JSON.parse(body) : {}); } catch { reject(new Error("Request body must be valid JSON")); }
+    });
+    request.on("error", reject);
+  });
 }
 
 function progressOf(member) {
@@ -436,31 +477,136 @@ export async function readLiveSnapshot(endpoint) {
   return evaluateRuntime(projectExpression(), endpoint);
 }
 
+function keySnapshotExpression() {
+  return `(() => {
+    const debug = window.__battleDebug?.();
+    const state = debug?.state;
+    const keys = Array.isArray(state?.keyItems) ? state.keyItems : [];
+    const difficulty = state?.difficulty ?? debug?.difficulty ?? 0;
+    const byDifficulty = {};
+    for (const key of keys) {
+      const value = key?.difficulty;
+      byDifficulty[value] = (byDifficulty[value] ?? 0) + 1;
+    }
+    return {
+      total: keys.length,
+      difficulty,
+      current: keys.filter((key) => key?.difficulty === difficulty).length,
+      byDifficulty,
+    };
+  })()`;
+}
+
+async function readKeySnapshot(endpoint) {
+  return evaluateRuntime(keySnapshotExpression(), endpoint);
+}
+
+function awakenUiExpression(targetId, foodIds) {
+  return `(async () => {
+    const text = (node) => node?.textContent?.replace(/\\s+/g, " ").trim() ?? "";
+    const visible = (node) => {
+      if (!node || node.classList.contains("hidden")) return false;
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+    };
+    const debug = window.__battleDebug?.();
+    const state = debug?.state;
+    if (!state) return { error: "Battle state unavailable" };
+    const targetId = ${JSON.stringify(targetId)};
+    const foodIds = [...new Set(${JSON.stringify(foodIds)})];
+    if (!state.monsters?.[targetId] || foodIds.some((id) => !state.monsters?.[id] || id === targetId)) return { error: "Selected monster no longer exists" };
+    const expeditionIds = new Set((state.expeditions ?? []).flatMap((group) => Array.isArray(group) ? group : (group.members ?? [])));
+    if (foodIds.some((id) => state.monsters[id].fav || state.party.includes(id) || expeditionIds.has(id))) return { error: "Favorites, party members, and expedition monsters are protected" };
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const findCell = (id) => document.querySelector('.mon-cell[data-mon="' + CSS.escape(id) + '"]');
+    const clickMonster = async (id) => {
+      let cell = findCell(id);
+      if (cell) { cell.click(); return true; }
+      const pageCount = document.querySelectorAll("#box-list .page-tab").length;
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        const page = document.querySelectorAll("#box-list .page-tab")[pageIndex];
+        if (!page) continue;
+        page.click();
+        await wait(100);
+        cell = findCell(id);
+        if (cell) { cell.click(); return true; }
+      }
+      return false;
+    };
+    let compoundPanel = document.querySelector("#compound-panel");
+    if (!visible(compoundPanel)) {
+      const tab = document.querySelector('.bar-tab[data-win="compound"]');
+      if (!tab) return { error: "Compound window unavailable" };
+      tab.click();
+      await wait(100);
+      compoundPanel = document.querySelector("#compound-panel");
+    }
+    if (!visible(compoundPanel)) return { error: "Compound window did not open" };
+    const ritualTab = [...compoundPanel.querySelectorAll(".cmp-tab")]
+      .find((button) => /覚醒|Awaken/i.test(text(button)));
+    if (!ritualTab) return { error: "Awakening mode unavailable" };
+    ritualTab.click();
+    await wait(80);
+    if (!await clickMonster(targetId)) return { error: "Target monster is not visible in the box" };
+    for (const id of foodIds) {
+      if (!await clickMonster(id)) return { error: "A selected duplicate is not visible in the box" };
+    }
+    await wait(80);
+    compoundPanel = document.querySelector("#compound-panel");
+    const ritualButton = [...compoundPanel.querySelectorAll("button.compound-do")]
+      .find((button) => /儀式を行う|Perform the rite/i.test(text(button)) && !button.disabled);
+    if (!ritualButton) return { error: "Awakening ritual button is unavailable" };
+    const before = state.monsters[targetId]?.awakening ?? 0;
+    ritualButton.click();
+    await wait(250);
+    const after = window.__battleDebug?.()?.state?.monsters?.[targetId]?.awakening ?? before;
+    const remainingSlots = [...document.querySelectorAll("#compound-panel .cmp-slot .cmp-x")];
+    for (const clearButton of remainingSlots) clearButton.click();
+    await wait(80);
+    return {
+      success: after > before,
+      before,
+      after,
+      consumed: foodIds.length,
+      selectionCleared: document.querySelectorAll("#compound-panel .cmp-slot").length === 0,
+    };
+  })()`;
+}
+
 async function setTurboRespawn(enabled, endpoint) {
   return evaluateRuntime(`(() => {
     const debug = window.__battleDebug?.();
-    const state = debug?.state;
-    if (!state) throw new Error("TASMON battle state is unavailable");
     const existing = window.__turboRespawn;
     if (existing) {
       if (!${enabled}) {
         existing.restore();
         return false;
       }
-      if (existing.version === 2 && typeof existing.refresh === "function") {
-        existing.refresh();
-        return { enabled: true, phase: existing.phase, keyCount: existing.keyCount };
+      if (existing.version === 4 && existing.enabled && typeof existing.pulse === "function") {
+        return existing.pulse();
       }
       existing.restore();
     }
     if (!${enabled}) return false;
     const original = window.setTimeout;
     const turbo = {
-      version: 2,
+      version: 4,
       enabled: true,
+      stack: 0,
+      phase: "idle",
+      keyCount: 0,
+      lastAction: "installed",
+      log: [],
       restore() {
         if (window.setTimeout === turbo.wrapper) window.setTimeout = original;
         turbo.enabled = false;
+        turbo.log.push({ at: Date.now(), action: "stopped", stack: turbo.stack });
+      },
+      write(action, detail = {}) {
+        turbo.lastAction = action;
+        turbo.log.push({ at: Date.now(), action, stack: turbo.stack, ...detail });
+        turbo.log = turbo.log.slice(-40);
       },
       stageNode(labelText) {
         const mapTab = document.querySelector('.bar-tab[data-win="map"]');
@@ -472,35 +618,53 @@ async function setTurboRespawn(enabled, endpoint) {
             .find((candidate) => candidate.textContent.includes(labelText));
         }
         const node = label?.previousElementSibling;
-        if (!node || node.classList.contains("locked") || node.classList.contains("current")) return false;
+        if (!node) return "missing-stage";
+        if (node.classList.contains("locked")) return "locked-stage";
+        if (node.classList.contains("current")) return "already-stage";
         node.click();
-        return true;
+        return "stage-moved";
+      },
+      loopNode(labelText) {
+        const label = [...document.querySelectorAll(".portal-node-label")]
+          .find((candidate) => candidate.textContent.includes(labelText));
+        const row = label?.parentElement;
+        const button = row?.querySelector(".portal-loop");
+        if (!button) return "missing-loop";
+        if (button.classList.contains("on")) return "already-looping";
+        button.click();
+        return "loop-enabled";
       },
       bossKeyCount() {
-        const difficulty = window.__battleDebug?.()?.difficulty;
-        return (state.keyItems ?? []).filter((key) => key.difficulty === difficulty && !key.stored).length;
+        const current = window.__battleDebug?.();
+        const state = current?.state;
+        const difficulty = current?.difficulty;
+        // The game HUD counts both inventory and stored keys as usable.
+        return (state?.keyItems ?? []).filter((key) => key.difficulty === difficulty).length;
       },
-      refresh() {
-        if (!turbo.enabled) return false;
+      pulse() {
+        if (!turbo.enabled) return { enabled: false, action: "stopped" };
+        turbo.stack += 1;
         if (window.setTimeout !== turbo.wrapper) window.setTimeout = turbo.wrapper;
         const keys = turbo.bossKeyCount();
         turbo.phase = keys >= 9 ? "boss-10-10" : "farm-10-7";
         turbo.keyCount = keys;
-        turbo.stageNode(keys >= 9 ? "[10-10]" : "[10-7]");
-        return true;
+        const target = keys >= 9 ? "[10-10]" : "[10-7]";
+        const stageAction = turbo.stageNode(target);
+        const loopAction = turbo.loopNode(target);
+        turbo.write(stageAction + "/" + loopAction, { phase: turbo.phase, keyCount: keys, target, layers: turbo.stack });
+        return { enabled: true, phase: turbo.phase, keyCount: turbo.keyCount, stack: turbo.stack, lastAction: turbo.lastAction, log: turbo.log };
       },
     };
     turbo.wrapper = function (callback, delay, ...args) {
       const timer = original.call(this, callback, delay, ...args);
       if (delay === 450 && turbo.enabled) {
-        for (let duplicate = 0; duplicate < 3; duplicate++) original.call(this, callback, delay, ...args);
+        for (let duplicate = 0; duplicate < turbo.stack; duplicate++) original.call(this, callback, delay, ...args);
       }
       return timer;
     };
     window.__turboRespawn = turbo;
     window.setTimeout = turbo.wrapper;
-    turbo.refresh();
-    return { enabled: true, phase: turbo.phase, keyCount: turbo.keyCount };
+    return turbo.pulse();
   })()`, endpoint);
 }
 
@@ -529,6 +693,34 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
   let turboPhase = null;
   let turboKeys = 0;
   let turboRefreshTimer = null;
+  let turboStack = 0;
+  let turboLastAction = null;
+  let turboLog = [];
+  const refreshTurboState = async () => {
+    if (!turboEnabled) return;
+    try {
+      const [keys, runtime] = await Promise.all([
+        readKeySnapshot(endpoint),
+        evaluateRuntime(`(() => {
+          const turbo = window.__turboRespawn;
+          return turbo ? {
+            enabled: turbo.enabled,
+            stack: turbo.stack,
+            lastAction: turbo.lastAction,
+            log: turbo.log,
+          } : null;
+        })()`, endpoint),
+      ]);
+      if (!runtime?.enabled) return;
+      turboKeys = keys?.current ?? 0;
+      turboPhase = turboKeys >= 9 ? "boss-10-10" : "farm-10-7";
+      turboStack = runtime.stack ?? turboStack;
+      turboLastAction = runtime.lastAction ?? turboLastAction;
+      turboLog = runtime.log ?? turboLog;
+    } catch {
+      // The regular live poll will report a disconnected game separately.
+    }
+  };
   const signatureOwners = Object.fromEntries(
     Object.entries(SPECIES)
       .filter(([, species]) => SKILLS[species.skillId]?.signature)
@@ -549,8 +741,20 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
   const server = http.createServer(async (request, response) => {
     const pathname = new URL(request.url, `http://${request.headers.host ?? "localhost"}`).pathname;
     if (pathname === "/api/live") {
+      await refreshTurboState();
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys }));
+      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog }));
+      return;
+    }
+    if (pathname === "/api/keys") {
+      try {
+        const keys = await readKeySnapshot(endpoint);
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify(keys));
+      } catch (error) {
+        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message }));
+      }
       return;
     }
     if (pathname === "/api/awakenings") {
@@ -560,6 +764,27 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
         response.end(JSON.stringify(data));
       } catch (error) {
         response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+    if (pathname === "/api/awaken" && request.method === "POST") {
+      try {
+        const body = await readRequestBody(request);
+        const targetId = typeof body.targetId === "string" ? body.targetId : "";
+        const foodIds = Array.isArray(body.foodIds) ? body.foodIds.filter((id) => typeof id === "string") : [];
+        if (!targetId || foodIds.length === 0) throw new Error("Choose a target and at least one duplicate");
+        const result = await evaluateRuntime(awakenUiExpression(targetId, foodIds), endpoint, { awaitPromise: true });
+        if (result?.error) {
+          response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+          response.end(JSON.stringify(result));
+          return;
+        }
+        const inventory = await evaluateRuntime(awakeningExpression(), endpoint);
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify({ result, inventory }));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ error: error.message }));
       }
       return;
@@ -582,27 +807,40 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     }
     if (pathname === "/api/turbo" && request.method === "POST") {
       try {
-        turboEnabled = !turboEnabled;
-        const turbo = await setTurboRespawn(turboEnabled, endpoint);
+        const turbo = await setTurboRespawn(true, endpoint);
+        const keys = await readKeySnapshot(endpoint);
         turboEnabled = Boolean(turbo?.enabled ?? turbo);
-        turboPhase = turbo?.phase ?? null;
-        turboKeys = turbo?.keyCount ?? 0;
+        turboKeys = keys?.current ?? turbo?.keyCount ?? 0;
+        turboPhase = turboKeys >= 9 ? "boss-10-10" : "farm-10-7";
+        turboStack = turbo?.stack ?? 0;
+        turboLastAction = turbo?.lastAction ?? null;
+        turboLog = turbo?.log ?? turboLog;
         if (turboRefreshTimer) clearInterval(turboRefreshTimer);
-        turboRefreshTimer = turboEnabled
-          ? setInterval(async () => {
-            try {
-              const turbo = await setTurboRespawn(true, endpoint);
-              turboPhase = turbo?.phase ?? turboPhase;
-              turboKeys = turbo?.keyCount ?? turboKeys;
-            } catch {}
-          }, 30_000)
-          : null;
+        turboRefreshTimer = setInterval(refreshTurboState, 250);
+        await refreshTurboState();
         response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        response.end(JSON.stringify({ turbo: turboEnabled, phase: turboPhase, keyCount: turboKeys }));
+        response.end(JSON.stringify({ turbo: turboEnabled, phase: turboPhase, keyCount: turboKeys, stack: turboStack, lastAction: turboLastAction, log: turboLog }));
       } catch (error) {
         turboEnabled = false;
         response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ error: error.message, turbo: false }));
+      }
+      return;
+    }
+    if (pathname === "/api/turbo/stop" && request.method === "POST") {
+      try {
+        await setTurboRespawn(false, endpoint);
+        turboEnabled = false;
+        turboPhase = null;
+        turboKeys = 0;
+        turboStack = 0;
+        turboLastAction = "stopped";
+        turboLog = [];
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify({ turbo: false, phase: null, keyCount: 0, stack: 0, lastAction: "stopped", log: [] }));
+      } catch (error) {
+        response.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message, turbo: turboEnabled }));
       }
       return;
     }

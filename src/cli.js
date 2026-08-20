@@ -27,6 +27,7 @@ Usage:
   npm start -- export-save <output-path> [port] [backup]
   npm start -- render-report <save-json-path> [output-path]
   npm start -- live [port] [cdp-port]
+  npm start -- turbo [endpoint]
   npm start -- craft [max-runs] [cdp-port] [gear|charm|both] --confirm [--loop] [--min-atk-pct 0.9] [--min-skill-power 0.4]
   npm start -- constellation [port] [save-json-path]
 
@@ -39,6 +40,7 @@ Commands:
   export-save   Read the save from a local DevTools port into a project file.
   render-report Generate a standalone HTML attack calculation report.
   live          Start the localhost read-only battle-rate dashboard.
+  turbo         POST to the turbo endpoint every 10 seconds.
   craft         Automate the existing game craft controls after confirmation (gear, charm, or both).
   constellation Start the interactive read-only perk constellation viewer.
 `);
@@ -264,6 +266,11 @@ async function main() {
 
   if (command === "live") {
     await runLive(args);
+    return;
+  }
+
+  if (command === "turbo") {
+    await import("./turbo-loop.js");
     return;
   }
 

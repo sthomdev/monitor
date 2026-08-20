@@ -39,6 +39,11 @@ const SNAPSHOT = `(() => {
   };
 })()`;
 
+const SNAPSHOT_WITH_STORAGE = SNAPSHOT.replace(
+  'storage: state.settings?.cubeUseStorage === false ? [] : (state.storage ?? []).map(project)',
+  'storage: (state.storage ?? []).map(project)',
+);
+
 function bandOf(level) {
   const bands = [
     { min: 1, max: 10 },
@@ -83,7 +88,7 @@ async function gameAction(expression, endpoint) {
   return evaluateRuntime(expression, endpoint, { awaitPromise: true });
 }
 
-function craftUiExpression(mode, band) {
+function craftUiExpression(mode, band, includeStorage = false) {
   const modeValue = mode === "charm" ? "craftCharm" : "craft";
   return `(async () => {
     const text = (node) => node?.textContent?.replace(/\\s+/g, " ").trim() ?? "";
@@ -108,6 +113,14 @@ function craftUiExpression(mode, band) {
       body = document.querySelector("#cube-body");
     }
     if (!visible(body)) return { ok: false, reason: "craft-window-not-visible" };
+    if (${includeStorage}) {
+      const storageToggle = body.querySelector(".cube-storage-row input[type=checkbox]");
+      if (storageToggle && !storageToggle.checked) {
+        storageToggle.click();
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        body = document.querySelector("#cube-body");
+      }
+    }
     const modeSel = document.querySelector("#cube-body select.cube-band");
     if (!modeSel || ![...modeSel.options].some((option) => option.value === ${JSON.stringify(modeValue)}))
       return { ok: false, reason: "craft-mode-not-found" };
@@ -215,9 +228,21 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       }
       if (chests.opened > 0) log(`Opened ${chests.opened} pending chests`);
     }
-    const before = await evaluateRuntime(SNAPSHOT, endpoint);
-    const groups = craftableGroupCount(before, mode, { minAtkPct, minSkillPower });
-    const group = groups.find((candidate) => candidate.batches > 0);
+    let before = await evaluateRuntime(SNAPSHOT, endpoint);
+    let groups = craftableGroupCount(before, mode, { minAtkPct, minSkillPower });
+    let group = groups.find((candidate) => candidate.batches > 0);
+    let includeStorage = false;
+    if (!group) {
+      const withStorage = await evaluateRuntime(SNAPSHOT_WITH_STORAGE, endpoint);
+      const storageGroups = craftableGroupCount(withStorage, mode, { minAtkPct, minSkillPower });
+      const storageGroup = storageGroups.find((candidate) => candidate.batches > 0);
+      if (storageGroup) {
+        groups = storageGroups;
+        group = storageGroup;
+        includeStorage = true;
+        before = withStorage;
+      }
+    }
     if (!group) {
       if (!loop) {
         results.push({ run: run + 1, crafted: false, reason: "no-safe-nine-item-group", groups, chests });
@@ -228,7 +253,7 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
       continue;
     }
-    const action = await gameAction(craftUiExpression(group.mode, group.band), endpoint);
+    const action = await gameAction(craftUiExpression(group.mode, group.band, includeStorage), endpoint);
     if (!action?.ok || !action.crafted) {
       if (loop && RETRYABLE_UI_REASONS.has(action?.reason)) {
         log(`Craft menu unavailable (${action.reason}); retrying in 10 seconds`);

@@ -1,4 +1,5 @@
 <!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -27,7 +28,10 @@
     .rarity-card{border-width:2px;background:linear-gradient(145deg,#fffdf0,var(--panel2));box-shadow:0 3px 0 rgba(4,32,65,.5)}.egg-table,.table,.caps{border:3px solid var(--line);background:var(--cream);box-shadow:var(--shadow)}.egg-row,.row{background:#b6cee0}.egg-row>*,.row>*{background:var(--cream)}.egg-row.head,.row.head{color:var(--blue-deep)}
     .skill-tab{color:var(--cream);text-shadow:1px 1px 0 var(--line)}.skill-tab:hover,.skill-tab.active{color:var(--blue-deep);text-shadow:none}.skill-description{cursor:help;text-decoration:underline dotted var(--green);text-underline-offset:3px}
     .turbo-active{background:var(--red)!important;color:#fff!important;border-color:#7d1f1f!important}
+    .turbo-console{margin-top:16px;border:2px solid var(--line);background:#071b2d;color:#9ee7b2;padding:14px;min-height:180px;max-height:360px;overflow:auto;font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
     .awaken-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.awaken-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font:700 11px Consolas,monospace;text-transform:uppercase}.awaken-controls select{min-width:240px;border:2px solid var(--line);background:var(--cream);color:var(--ink);padding:9px}.awaken-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}.awaken-summary article{border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px}.awaken-summary strong{display:block;color:var(--blue-deep);font:700 1.5rem Consolas,monospace}.awaken-summary span{color:var(--muted);font-size:12px}.awaken-table{margin-top:16px}.awaken-note{color:var(--muted);font-size:13px}.awaken-empty{border:2px dashed var(--line);padding:18px;color:var(--muted);background:var(--panel)}
+    .awaken-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:16px}.awaken-group{border:2px solid var(--line);background:var(--cream);padding:12px;cursor:pointer;text-align:left}.awaken-group.active{border-color:var(--green);box-shadow:0 0 0 3px rgba(47,154,86,.25)}.awaken-group strong{display:block;color:var(--blue-deep)}.awaken-group span{color:var(--muted);font:11px Consolas,monospace}.awaken-mons{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:14px}.awaken-mon{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--cream);padding:10px;min-width:0}.awaken-mon input{width:18px;height:18px;accent-color:var(--green)}.awaken-mon.target{border-color:var(--amber)}.awaken-mon.disabled{opacity:.48}.awaken-mon-copy{min-width:0;flex:1}.awaken-mon-copy strong,.awaken-mon-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.awaken-mon-copy span{color:var(--muted);font:11px Consolas,monospace}.awaken-badge{font:10px Consolas,monospace;color:var(--amber)}.awaken-batch-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}.awaken-batch-actions .button:disabled{opacity:.5;cursor:not-allowed}.awaken-result{margin-top:12px;color:var(--green);font-weight:700}.awaken-result.error{color:var(--red)}
+    .awaken-plan-tabs{display:flex;gap:4px;margin-top:18px;border-bottom:2px solid var(--line)}.awaken-plan-tab{border:2px solid transparent;border-bottom:0;background:transparent;color:var(--muted);padding:9px 13px;cursor:pointer;font:700 11px Consolas,monospace}.awaken-plan-tab.active{background:var(--cream);border-color:var(--line);color:var(--blue-deep)}.awaken-plan{border:2px solid var(--line);border-top:0;background:var(--cream);padding:14px}.awaken-plan-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.awaken-plan-head strong{color:var(--blue-deep)}.awaken-plan-head span,.awaken-plan-note{color:var(--muted);font-size:12px}.awaken-plan-goals{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.awaken-plan-goals label{display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--panel2);padding:6px 9px;color:var(--blue-deep);font:700 11px Consolas,monospace}.awaken-plan-goals input{accent-color:var(--green)}.awaken-plan-steps{display:grid;gap:6px;margin:12px 0}.awaken-plan-step{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;border-left:4px solid var(--green);background:var(--panel2);padding:8px 10px}.awaken-plan-step.chance{border-left-color:var(--amber)}.awaken-plan-step b{font:700 11px Consolas,monospace;color:var(--blue-deep);text-transform:uppercase}.awaken-plan-step span{min-width:0}.awaken-plan-step em{font-style:normal;color:var(--muted);font:11px Consolas,monospace}.awaken-plan-empty{color:var(--muted);padding:8px 0}.awaken-plan .button{margin-top:4px}
   </style>
 </head>
 <body>
@@ -36,8 +40,8 @@
       <div><div class="eyebrow">TASMON / live telemetry</div><h1>What the battle is earning.</h1><p class="sub">Read-only session measurements from the local DevTools connection.</p></div>
       <div class="status" id="status"><span class="status-dot"></span><small>CONNECTING</small></div>
     </header>
-    <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><div><button class="button turbo" id="turbo" type="button" aria-pressed="false">Turbo</button> <button class="button" id="reset" type="button">Reset session</button></div></div>
-    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button><button class="tab" data-tab="awakeningsPanel">Awakenings</button></nav>
+    <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><div><button class="button" id="reset" type="button">Reset session</button></div></div>
+    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button><button class="tab" data-tab="awakeningsPanel">Awakenings</button><button class="tab" data-tab="turboPanel">Turbo</button></nav>
     <div id="skillsPanel" class="tab-panel"><section class="section"><div class="section-head"><div class="label">Skill reference</div><div class="note">Browse by skill type</div></div><div id="skillRollReference"></div><div id="skillTabs" class="skill-tabs"></div><div id="skillsContent"></div><p class="note skill-disclaimer">The listed signature species is the skill's natural owner, not its exclusive owner. Signature skills are excluded from the standard level-milestone pool, but higher-star signature skills can appear in the rare-choice slot and can also be inherited through breeding.</p></section></div>
     <div id="ratesPanel" class="tab-panel active">
     <section class="cards">
@@ -64,11 +68,22 @@
       <section class="section"><div class="section-head"><div class="label">Highlights</div><div class="note">Session-derived signals</div></div><div class="highlights"><article class="highlight"><h3>First drop</h3><strong id="eggFirstDrop">--</strong></article><article class="highlight"><h3>Best quality</h3><strong id="eggBestQuality">--</strong></article><article class="highlight"><h3>Most common</h3><strong id="eggMostCommon">--</strong></article></div></section>
     </div>
     <div id="awakeningsPanel" class="tab-panel">
-      <section class="section"><div class="section-head"><div class="label">Awakening planner</div><div class="note">Choose the highest fodder rarity to spend</div></div>
-        <p class="awaken-note">Same-species fodder guarantees a tier in-game. Other fodder contributes shards toward the ritual's 90% chance cap. The planner minimizes common-equivalent cost using only the selected rarity tier or lower.</p>
-        <div class="awaken-controls"><label for="awakeningTarget">Target immortal+ mon<select id="awakeningTarget"></select></label><label for="awakeningMaxRarity">Max fodder rarity<select id="awakeningMaxRarity"></select></label><button class="button" id="awakeningRefresh" type="button">Refresh inventory</button></div>
-        <div class="awaken-summary"><article><span>Current tier</span><strong id="awakeningCurrent">--</strong></article><article><span>Next tier</span><strong id="awakeningNext">--</strong></article><article><span>Required shards</span><strong id="awakeningNeed">--</strong></article><article><span>Required fodder</span><strong id="awakeningCount">--</strong></article><article><span>Success chance</span><strong id="awakeningChance">--</strong></article></div>
-        <div class="table awaken-table" id="awakeningPlan"></div>
+      <section class="section"><div class="section-head"><div class="label">Batch awakening</div><div class="note">Group duplicates, select copies, awaken once</div></div>
+        <p class="awaken-note">Choose a species group, pick the monster to keep, then select its copies. Favorites, party members, and expedition monsters are protected automatically. Same-species copies guarantee awakening tiers; other selected monsters contribute ritual shards.</p>
+        <div class="awaken-controls"><label for="awakeningRarityFilter">Show groups<select id="awakeningRarityFilter"><option value="all">All rarities</option><option value="common">Common</option><option value="rare">Rare</option><option value="ultra">Ultra</option><option value="legend">Legend</option><option value="immortal">Immortal</option><option value="arcana">Arcana</option><option value="beyond">Beyond</option><option value="century">Century</option><option value="cosmic">Cosmic</option><option value="celestial">Celestial</option></select></label><button class="button" id="awakeningRefresh" type="button">Refresh inventory</button></div>
+        <div class="awaken-groups" id="awakeningGroups"></div>
+        <div class="awaken-controls" style="margin-top:16px"><label for="awakeningTarget">Monster to keep<select id="awakeningTarget"></select></label><label for="awakeningMaxRarity">Max fodder rarity<select id="awakeningMaxRarity"></select></label></div>
+        <div class="awaken-plan-tabs" role="tablist" aria-label="Awakening plans"><button class="awaken-plan-tab active" type="button" data-plan="safe" role="tab">Safe path</button><button class="awaken-plan-tab" type="button" data-plan="cheap" role="tab">Cheapest path</button></div><div class="awaken-plan" id="awakeningPlan" role="tabpanel"></div>
+        <div class="awaken-summary"><article><span>Current tier</span><strong id="awakeningCurrent">--</strong></article><article><span>Copies selected</span><strong id="awakeningCount">0</strong></article><article><span>Guaranteed tiers</span><strong id="awakeningGuaranteed">0</strong></article><article><span>Ritual chance</span><strong id="awakeningChance">0%</strong></article><article><span>Remaining copies</span><strong id="awakeningRemaining">--</strong></article></div>
+        <div class="awaken-batch-actions"><button class="button" id="awakeningSelectAll" type="button">Select all safe copies</button><button class="button" id="awakeningClear" type="button">Clear selection</button><button class="button" id="awakeningDo" type="button" disabled>Awaken selected</button><span class="awaken-result" id="awakeningResult"></span></div>
+        <div class="awaken-mons" id="awakeningMons"></div>
+      </section>
+    </div>
+    <div id="turboPanel" class="tab-panel">
+      <section class="section"><div class="section-head"><div class="label">Turbo reproduction</div><div class="note">Each pulse adds one timer layer</div></div>
+        <p class="awaken-note">Turbo mirrors the observed loop transition: it selects 10-7 until nine keys are available, enables that stage's loop control, and adds one extra deferred wave callback layer per pulse. Once nine keys exist, it switches to the boss loop. This is an experimental reproduction of the game's pending-callback behavior.</p>
+        <div class="actions"><div class="meta"><span id="turboPhase">Phase --</span><span id="turboStack">Layers --</span><span id="turboKeys">Keys --</span></div><div><button class="button turbo" id="turboPulse" type="button">Pulse Turbo</button> <button class="button" id="turboStop" type="button">Stop</button></div></div>
+        <pre class="turbo-console" id="turboConsole">Turbo console waiting.</pre>
       </section>
     </div>
     <p class="note warning" id="warning">Rates begin after the first two samples.</p>
@@ -115,14 +130,14 @@
         const data = await response.json();
         const latest = data.latest;
         renderEggs(data);
-        $("turbo").classList.toggle("turbo-active", data.turbo === true);
-        $("turbo").setAttribute("aria-pressed", String(data.turbo === true));
-        $("turbo").textContent = data.turbo === true
-          ? `Turbo ${data.turboPhase === "boss-10-10" ? "10-10" : "10-7"} (${data.turboKeys}/9)`
-          : "Turbo";
-        $("turbo").title = data.turbo === true
-          ? `Refreshes: ${data.turboRefreshCount ?? 0}; last action: ${data.turboLastAction ?? "none"}; last refresh: ${data.turboLastRefreshAt ? new Date(data.turboLastRefreshAt).toLocaleTimeString() : "none"}`
-          : "Enable Turbo";
+        $("turboPulse").classList.toggle("turbo-active", data.turbo === true);
+        $("turboPulse").textContent = data.turbo === true ? "Pulse Turbo" : "Start Turbo";
+        $("turboPhase").textContent = `Phase ${data.turboPhase ?? "idle"}`;
+        $("turboStack").textContent = `Layers ${data.turboStack ?? 0}`;
+        $("turboKeys").textContent = `Keys ${data.turboKeys ?? 0}/9`;
+        $("turboConsole").textContent = (data.turboLog ?? []).length
+          ? data.turboLog.map((entry) => `${new Date(entry.at).toLocaleTimeString()} | layer ${entry.stack} | ${entry.action}${entry.phase ? ` | ${entry.phase} | keys ${entry.keyCount} | target ${entry.target}` : ""}`).join("\n")
+          : "Turbo console waiting.";
         $("status").classList.toggle("offline", !data.connected);
         $("status").innerHTML = `<span class="status-dot"></span><small>${data.connected ? "LIVE / READ-ONLY" : "OFFLINE"}</small>`;
         $("goldRate").textContent = `${number(data.rates.grossGoldPerMinute)} G`;
@@ -226,45 +241,122 @@
     fetch("/api/skill-roll-reference").then((response) => response.ok ? response.json() : Promise.reject(new Error("Skill roll reference unavailable"))).then(renderSkillRollReference).catch(() => {});
     const awakeningRarity = { common: 1, rare: 2, ultra: 3, legend: 4, immortal: 5, arcana: 6, beyond: 7, century: 8, cosmic: 9, celestial: 10 };
     let awakeningData = null;
+    let awakeningGroup = null;
+    let awakeningFoods = new Set();
+    let awakeningPlanMode = "safe";
+    let awakeningGoal = null;
     const awakeningCost = (target, food) => {
       const stars = awakeningRarity[food.rarity] ?? 1;
       const targetStars = awakeningRarity[target.rarity] ?? 1;
       return stars * (1 + Math.max(0, food.level - 1) * 0.02) * (1 + food.awakening) * Math.pow(0.6, Math.max(0, targetStars - stars));
     };
-    const awakeningPlan = (target) => {
-      const level = target.awakening;
-      if (level >= awakeningData.max) return { foods: [], chance: 0, next: level, need: 0 };
-      const need = awakeningData.needs[level] ?? 216;
-      const maxRarity = $("awakeningMaxRarity").value || "legend";
-      const targetRank = awakeningRarity[target.rarity] ?? 1;
-      const maxRank = awakeningRarity[maxRarity] ?? awakeningRarity.legend;
-      const ranked = awakeningData.fodder.filter((food) => food.id !== target.id && (awakeningRarity[food.rarity] ?? 1) <= maxRank && (awakeningRarity[food.rarity] ?? 1) < targetRank).map((food) => ({ food, shards: awakeningCost(target, food), cost: Math.pow(2, (awakeningRarity[food.rarity] ?? 1) - 1) })).sort((a, b) => (a.cost / a.shards) - (b.cost / b.shards) || b.shards - a.shards);
-      const foods = [];
-      let shards = 0;
-      for (const entry of ranked) {
-        foods.push(entry.food);
-        shards += entry.shards;
-        if (shards >= need) break;
+    const eligibleFodder = (chosen) => {
+      const maxRarity = awakeningRarity[$("awakeningMaxRarity").value] ?? 4;
+      return (awakeningData?.monsters ?? []).filter((monster) => monster.id !== chosen.id && !monster.expedition && !monster.fav && !monster.party && (awakeningRarity[monster.rarity] ?? 1) <= maxRarity);
+    };
+    const awakeningPlan = (chosen) => {
+      const maxLevel = awakeningData.max ?? 6;
+      const limit = Math.min(maxLevel, Math.max(chosen.awakening + 1, awakeningGoal ?? maxLevel));
+      const safe = eligibleFodder(chosen).filter((monster) => monster.speciesId === chosen.speciesId).sort((a, b) => awakeningCost(chosen, a) - awakeningCost(chosen, b));
+      if (awakeningPlanMode === "safe") {
+        const selected = safe.slice(0, Math.max(0, limit - chosen.awakening));
+        return { title: "Safe path", note: "Same-species copies guarantee one awakening stage each. Lower-value copies are used first.", selected, steps: selected.map((monster, index) => ({ kind: "guaranteed", label: `Stage ${chosen.awakening + index + 1}`, detail: monster.name, meta: `Lv ${monster.level} · Aw ${monster.awakening}` })) };
       }
-      const chance = Math.min(awakeningData.maxChance, shards / need);
-      return { foods, chance, next: Math.min(awakeningData.max, level + (chance > 0 ? 1 : 0)), need };
+      const cheap = eligibleFodder(chosen).filter((monster) => monster.speciesId !== chosen.speciesId).sort((a, b) => awakeningCost(chosen, a) - awakeningCost(chosen, b));
+      const selected = [];
+      const steps = [];
+      let level = chosen.awakening;
+      let cursor = 0;
+      while (level < limit && (cursor < cheap.length || safe.length > selected.filter((monster) => monster.speciesId === chosen.speciesId).length)) {
+        const need = awakeningData.needs[Math.min(limit - 1, level)] ?? 216;
+        const batch = [];
+        let shards = 0;
+        while (cursor < cheap.length && shards < need * (awakeningData.maxChance ?? 0.9)) {
+          const monster = cheap[cursor++];
+          batch.push(monster);
+          selected.push(monster);
+          shards += awakeningCost(chosen, monster);
+        }
+        if (batch.length) {
+          const chance = Math.min(awakeningData.maxChance ?? 0.9, shards / need);
+          steps.push({ kind: "chance", label: `Stage ${level + 1}`, detail: `${batch.length} cheap fodder`, meta: `${number(chance * 100, 1)}% chance · ${number(shards, 1)} shards` });
+          level += 1;
+        } else {
+          const monster = safe.find((candidate) => !selected.includes(candidate));
+          if (!monster) break;
+          selected.push(monster);
+          steps.push({ kind: "guaranteed", label: `Stage ${level + 1}`, detail: `${monster.name} reserved copy`, meta: `Lv ${monster.level} · Aw ${monster.awakening}` });
+          level += 1;
+        }
+      }
+      return { title: "Cheapest path", note: "Low-cost, non-safe fodder is used for earlier chance rolls; same-species copies are held for later guaranteed stages.", selected, steps };
+    };
+    const renderAwakeningPlan = (chosen) => {
+      const plan = awakeningPlan(chosen);
+      const maxLevel = awakeningData.max ?? 6;
+      const goal = Math.min(maxLevel, Math.max(chosen.awakening + 1, awakeningGoal ?? maxLevel));
+      awakeningGoal = goal;
+      const ids = plan.selected.map((monster) => monster.id);
+      const steps = plan.steps.length ? `<div class="awaken-plan-steps">${plan.steps.map((step) => { const stage = Number(step.label.replace("Stage ", "")); return `<div class="awaken-plan-step ${step.kind === "chance" ? "chance" : ""}"><input type="checkbox" data-awakening-goal="${stage}"${stage === goal ? " checked" : ""} aria-label="Reach ${step.label}"><b>${step.label}</b><span>${step.detail}</span><em>${step.meta}</em></div>`; }).join("")}</div>` : `<div class="awaken-plan-empty">No eligible fodder remains for this route.</div>`;
+      const goalOptions = Array.from({ length: Math.max(0, maxLevel - chosen.awakening) }, (_, index) => { const stage = chosen.awakening + index + 1; return `<label><input type="checkbox" data-awakening-goal="${stage}"${stage === goal ? " checked" : ""}> Stage ${stage}</label>`; }).join("");
+      $("awakeningPlan").innerHTML = `<div class="awaken-plan-head"><strong>${plan.title}</strong><span>Reach Stage ${goal} · ${ids.length} fodder selected</span></div><p class="awaken-plan-note">${plan.note} Select one target stage; the plan stops there.</p><div class="awaken-plan-goals">${goalOptions}</div>${steps}<button class="button" type="button" id="awakeningApplyPlan" ${ids.length ? "" : "disabled"}>Use this plan</button>`;
+      $("awakeningPlan").querySelectorAll("[data-awakening-goal]").forEach((input) => input.addEventListener("change", () => { if (input.checked) { awakeningGoal = Number(input.dataset.awakeningGoal); renderAwakening(); } else input.checked = true; }));
+      $("awakeningApplyPlan").addEventListener("click", () => { awakeningFoods = new Set(ids); renderAwakening(); });
+    };
+    const groupRows = () => {
+      const filter = $("awakeningRarityFilter").value;
+      const monsters = (awakeningData?.monsters ?? []).filter((monster) => filter === "all" || monster.rarity === filter);
+      const groups = new Map();
+      monsters.forEach((monster) => { const list = groups.get(monster.speciesId) ?? []; list.push(monster); groups.set(monster.speciesId, list); });
+      return [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    };
+    const currentGroup = () => groupRows().find(([speciesId]) => speciesId === awakeningGroup) ?? groupRows()[0];
+    const target = () => (awakeningData?.monsters ?? []).find((monster) => monster.id === $("awakeningTarget").value) ?? currentGroup()?.[1]?.[0];
+    const renderAwakeningGroups = () => {
+      const groups = groupRows();
+      if (!groups.some(([speciesId]) => speciesId === awakeningGroup)) awakeningGroup = groups[0]?.[0] ?? null;
+      $("awakeningGroups").innerHTML = groups.length ? groups.map(([speciesId, monsters]) => { const first = monsters[0]; const safe = monsters.filter((monster) => !monster.fav && !monster.party && !monster.expedition).length; const copyLabel = monsters.length === 1 ? "1 monster" : `${monsters.length} copies`; return `<button class="awaken-group${speciesId === awakeningGroup ? " active" : ""}" type="button" data-species="${speciesId}"><strong>${first.name}</strong><span>${copyLabel} · ${first.rarity} · ${safe} safe to use</span></button>`; }).join("") : `<div class="awaken-empty">No monsters match this rarity filter.</div>`;
+      $("awakeningGroups").querySelectorAll("[data-species]").forEach((button) => button.addEventListener("click", () => { awakeningGroup = button.dataset.species; awakeningFoods.clear(); renderAwakening(); }));
     };
     const renderAwakening = () => {
+      renderAwakeningGroups();
+      const group = currentGroup();
+      const members = (group?.[1] ?? []).filter((monster) => !monster.expedition);
       const select = $("awakeningTarget");
-      const target = awakeningData?.targets.find((entry) => entry.id === select.value) ?? awakeningData?.targets[0];
-      if (!target) { $("awakeningPlan").innerHTML = `<div class="awaken-empty">No immortal+ monsters are currently available.</div>`; return; }
-      select.value = target.id;
-      const plan = awakeningPlan(target);
-      $("awakeningCurrent").textContent = `Awakening ${target.awakening}`;
-      $("awakeningNext").textContent = plan.next === target.awakening ? "MAX" : `Awakening ${plan.next}`;
-      $("awakeningNeed").textContent = number(plan.need, 0);
-      $("awakeningCount").textContent = `${plan.foods.length} mons`;
-      $("awakeningChance").textContent = `${number(plan.chance * 100, 1)}%`;
-      $("awakeningPlan").innerHTML = plan.foods.length ? `<div class="row head"><span>Fodder</span><span>Rarity</span><span>Level</span><span>Awakening</span><span>Shard value</span></div>${plan.foods.map((food) => `<div class="row"><strong>${food.name}</strong><span>${food.rarity}</span><span>${food.level}</span><span>${food.awakening}</span><span>${number(awakeningCost(target, food), 1)}</span></div>`).join("")}<p class="awaken-note">Need ${number(plan.need, 0)} shards; selected fodder contributes ${number(plan.foods.reduce((sum, food) => sum + awakeningCost(target, food), 0), 1)}. Fodder ceiling: ${$("awakeningMaxRarity").selectedOptions[0]?.textContent ?? "Legend"}. Same-species copies are not selected by this lower-rarity planner because the target species is ${target.name}.</p>` : `<div class="awaken-empty">This monster is at the maximum awakening tier or no eligible fodder is available below the target's rarity.</div>`;
+      const previousTarget = select.value;
+      select.innerHTML = members.map((monster) => `<option value="${monster.id}">${monster.name} · Lv ${monster.level} · Aw ${monster.awakening}${monster.fav ? " · favorite" : ""}${monster.party ? " · party" : ""}</option>`).join("");
+      if (members.some((monster) => monster.id === previousTarget)) select.value = previousTarget;
+      const chosen = target();
+      if (!chosen) { $("awakeningMons").innerHTML = `<div class="awaken-empty">Select a duplicate group to begin.</div>`; $("awakeningDo").disabled = true; return; }
+      select.value = chosen.id;
+      const safeFoods = eligibleFodder(chosen);
+      awakeningFoods = new Set([...awakeningFoods].filter((id) => safeFoods.some((monster) => monster.id === id)));
+      const selected = safeFoods.filter((monster) => awakeningFoods.has(monster.id));
+      const guaranteed = Math.min(selected.filter((monster) => monster.speciesId === chosen.speciesId).length, awakeningData.max - chosen.awakening);
+      const shards = selected.filter((monster) => monster.speciesId !== chosen.speciesId).reduce((sum, monster) => sum + awakeningCost(chosen, monster), 0);
+      const need = awakeningData.needs[Math.min(awakeningData.max - 1, chosen.awakening + guaranteed)] ?? 216;
+      const chance = Math.min(awakeningData.maxChance, shards / need);
+      $("awakeningCurrent").textContent = `Awakening ${chosen.awakening}`;
+      $("awakeningCount").textContent = `${selected.length} / ${safeFoods.length}`;
+      $("awakeningGuaranteed").textContent = `+${guaranteed}`;
+      $("awakeningChance").textContent = `${number(chance * 100, 1)}%`;
+      $("awakeningRemaining").textContent = `${Math.max(0, safeFoods.length - selected.length)} copies`;
+      $("awakeningDo").disabled = selected.length === 0 || chosen.awakening >= awakeningData.max;
+      renderAwakeningPlan(chosen);
+      const visibleMembers = [...members, ...safeFoods.filter((monster) => awakeningFoods.has(monster.id) && !members.some((member) => member.id === monster.id))];
+      $("awakeningMons").innerHTML = visibleMembers.map((monster) => { const isTarget = monster.id === chosen.id; const blocked = !isTarget && (monster.fav || monster.party || monster.expedition); const status = isTarget ? "KEEP" : monster.speciesId === chosen.speciesId ? "GUARANTEED" : "SAFE"; return `<label class="awaken-mon${isTarget ? " target" : ""}${blocked ? " disabled" : ""}"><input type="checkbox" data-food-id="${monster.id}"${awakeningFoods.has(monster.id) ? " checked" : ""}${isTarget || blocked ? " disabled" : ""}><span class="awaken-mon-copy"><strong>${monster.name}${monster.shiny ? " ★" : ""}</strong><span>Lv ${monster.level} · Aw ${monster.awakening} · ${monster.rarity} · ${status}${monster.equipmentCount ? ` · ${monster.equipmentCount} gear returns` : ""}</span></span></label>`; }).join("");
+      $("awakeningMons").querySelectorAll("[data-food-id]").forEach((input) => input.addEventListener("change", () => { if (input.checked) awakeningFoods.add(input.dataset.foodId); else awakeningFoods.delete(input.dataset.foodId); renderAwakening(); }));
+      $("awakeningResult").textContent = selected.length ? `${selected.length} selected. ${guaranteed ? `At least +${guaranteed} tier guaranteed.` : ""}` : "";
+      $("awakeningResult").classList.remove("error");
     };
-    const loadAwakenings = () => fetch(`/api/awakenings?t=${Date.now()}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Awakening inventory unavailable"))).then((data) => { awakeningData = data; const select = $("awakeningTarget"); select.innerHTML = data.targets.map((target) => `<option value="${target.id}">${target.name} · ${target.rarity} · Aw ${target.awakening}</option>`).join(""); const maxRarity = $("awakeningMaxRarity"); if (!maxRarity.options.length) maxRarity.innerHTML = Object.entries(awakeningRarity).map(([rarity]) => `<option value="${rarity}">${rarity[0].toUpperCase()}${rarity.slice(1)}</option>`).join(""); maxRarity.value = maxRarity.value || "legend"; renderAwakening(); }).catch((error) => { $("awakeningPlan").innerHTML = `<div class="awaken-empty">${error.message}</div>`; });
-    $("awakeningTarget").addEventListener("change", renderAwakening);
+    const loadAwakenings = () => fetch(`/api/awakenings?t=${Date.now()}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Awakening inventory unavailable"))).then((data) => { awakeningData = data; const maxRarity = $("awakeningMaxRarity"); if (!maxRarity.options.length) maxRarity.innerHTML = Object.entries(awakeningRarity).map(([rarity]) => `<option value="${rarity}">${rarity[0].toUpperCase()}${rarity.slice(1)}</option>`).join(""); maxRarity.value = maxRarity.value || "legend"; renderAwakening(); }).catch((error) => { $("awakeningGroups").innerHTML = `<div class="awaken-empty">${error.message}</div>`; });
+    $("awakeningTarget").addEventListener("change", () => { awakeningFoods.clear(); renderAwakening(); });
+    $("awakeningRarityFilter").addEventListener("change", () => { awakeningGroup = null; awakeningFoods.clear(); renderAwakening(); });
     $("awakeningMaxRarity").addEventListener("change", renderAwakening);
+    document.querySelectorAll(".awaken-plan-tab").forEach((tab) => tab.addEventListener("click", () => { awakeningPlanMode = tab.dataset.plan; document.querySelectorAll(".awaken-plan-tab").forEach((other) => other.classList.toggle("active", other === tab)); renderAwakening(); }));
+    $("awakeningSelectAll").addEventListener("click", () => { const chosen = target(); awakeningFoods = new Set(chosen ? eligibleFodder(chosen).map((monster) => monster.id) : []); renderAwakening(); });
+    $("awakeningClear").addEventListener("click", () => { awakeningFoods.clear(); renderAwakening(); });
+    $("awakeningDo").addEventListener("click", async () => { const chosen = target(); const foodIds = [...awakeningFoods]; if (!chosen || !foodIds.length) return; if (!window.confirm(`Awaken ${chosen.name} using ${foodIds.length} copies? The selected monsters will be consumed; equipment returns to inventory.`)) return; const button = $("awakeningDo"); button.disabled = true; try { const response = await fetch("/api/awaken", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetId: chosen.id, foodIds }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? data.result?.error ?? "Awakening failed"); $("awakeningResult").textContent = data.result.success ? `Success: ${chosen.name} reached awakening ${data.result.newLevel}.` : `Ritual completed; no tier gained (${data.result.sacrificed} consumed).`; await loadAwakenings(); } catch (error) { $("awakeningResult").textContent = error.message; $("awakeningResult").classList.add("error"); button.disabled = false; } });
     $("awakeningRefresh").addEventListener("click", loadAwakenings);
     loadAwakenings();
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
@@ -272,11 +364,12 @@
       document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));
     }));
     $("reset").addEventListener("click", async () => { await fetch("/api/reset", { method: "POST" }); refresh(); });
-    $("turbo").addEventListener("click", async () => {
+    $("turboPulse").addEventListener("click", async () => {
       const response = await fetch("/api/turbo", { method: "POST" });
-      if (!response.ok) throw new Error((await response.json()).error ?? "Unable to toggle Turbo");
+      if (!response.ok) throw new Error((await response.json()).error ?? "Unable to pulse Turbo");
       refresh();
     });
+    $("turboStop").addEventListener("click", async () => { await fetch("/api/turbo/stop", { method: "POST" }); refresh(); });
     refresh(); setInterval(refresh, 1000);
   </script>
 </body>
