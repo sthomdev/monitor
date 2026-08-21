@@ -357,6 +357,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
     experienceByMember: new Map(),
     kills: 0,
     eggDrops: [...initialEggDrops],
+    sessionEggDrops: [],
     elapsedMs: 0,
     ema: {
       grossGoldPerMinute: null,
@@ -398,7 +399,9 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
         const previousEggs = new Set((session.last.eggInventory ?? []).map((egg) => egg.id));
         for (const egg of snapshot.eggInventory ?? []) {
           if (!previousEggs.has(egg.id)) {
-            session.eggDrops.push({ timestamp: now, rarity: egg.rarity ?? "unknown" });
+            const drop = { timestamp: now, rarity: egg.rarity ?? "unknown" };
+            session.eggDrops.push(drop);
+            session.sessionEggDrops.push(drop);
             persistEggDrops(session.eggDrops);
           }
         }
@@ -438,6 +441,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
         experience: session.experience,
         kills: session.kills,
         eggDrops: session.eggDrops,
+        sessionEggDrops: session.sessionEggDrops,
         smoothing: "EMA",
         smoothingTimeConstantMs: EMA_TIME_CONSTANT_MS,
         rates: {
@@ -460,8 +464,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
       session.experience = 0;
       session.experienceByMember.clear();
       session.kills = 0;
-      session.eggDrops = [];
-      persistEggDrops(session.eggDrops);
+      session.sessionEggDrops = [];
       session.elapsedMs = 0;
       session.ema.grossGoldPerMinute = null;
       session.ema.netGoldPerMinute = null;

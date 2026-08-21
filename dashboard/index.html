@@ -32,6 +32,7 @@
     .awaken-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.awaken-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font:700 11px Consolas,monospace;text-transform:uppercase}.awaken-controls select{min-width:240px;border:2px solid var(--line);background:var(--cream);color:var(--ink);padding:9px}.awaken-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}.awaken-summary article{border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px}.awaken-summary strong{display:block;color:var(--blue-deep);font:700 1.5rem Consolas,monospace}.awaken-summary span{color:var(--muted);font-size:12px}.awaken-table{margin-top:16px}.awaken-note{color:var(--muted);font-size:13px}.awaken-empty{border:2px dashed var(--line);padding:18px;color:var(--muted);background:var(--panel)}
     .awaken-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:16px}.awaken-group{border:2px solid var(--line);background:var(--cream);padding:12px;cursor:pointer;text-align:left}.awaken-group.active{border-color:var(--green);box-shadow:0 0 0 3px rgba(47,154,86,.25)}.awaken-group strong{display:block;color:var(--blue-deep)}.awaken-group span{color:var(--muted);font:11px Consolas,monospace}.awaken-mons{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:14px}.awaken-mon{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--cream);padding:10px;min-width:0}.awaken-mon input{width:18px;height:18px;accent-color:var(--green)}.awaken-mon.target{border-color:var(--amber)}.awaken-mon.disabled{opacity:.48}.awaken-mon-copy{min-width:0;flex:1}.awaken-mon-copy strong,.awaken-mon-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.awaken-mon-copy span{color:var(--muted);font:11px Consolas,monospace}.awaken-badge{font:10px Consolas,monospace;color:var(--amber)}.awaken-batch-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}.awaken-batch-actions .button:disabled{opacity:.5;cursor:not-allowed}.awaken-result{margin-top:12px;color:var(--green);font-weight:700}.awaken-result.error{color:var(--red)}
     .awaken-plan-tabs{display:flex;gap:4px;margin-top:18px;border-bottom:2px solid var(--line)}.awaken-plan-tab{border:2px solid transparent;border-bottom:0;background:transparent;color:var(--muted);padding:9px 13px;cursor:pointer;font:700 11px Consolas,monospace}.awaken-plan-tab.active{background:var(--cream);border-color:var(--line);color:var(--blue-deep)}.awaken-plan{border:2px solid var(--line);border-top:0;background:var(--cream);padding:14px}.awaken-plan-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.awaken-plan-head strong{color:var(--blue-deep)}.awaken-plan-head span,.awaken-plan-note{color:var(--muted);font-size:12px}.awaken-plan-goals{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.awaken-plan-goals label{display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--panel2);padding:6px 9px;color:var(--blue-deep);font:700 11px Consolas,monospace}.awaken-plan-goals input{accent-color:var(--green)}.awaken-plan-steps{display:grid;gap:6px;margin:12px 0}.awaken-plan-step{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;border-left:4px solid var(--green);background:var(--panel2);padding:8px 10px}.awaken-plan-step.chance{border-left-color:var(--amber)}.awaken-plan-step b{font:700 11px Consolas,monospace;color:var(--blue-deep);text-transform:uppercase}.awaken-plan-step span{min-width:0}.awaken-plan-step em{font-style:normal;color:var(--muted);font:11px Consolas,monospace}.awaken-plan-empty{color:var(--muted);padding:8px 0}.awaken-plan .button{margin-top:4px}
+    .egg-chart{border:2px solid var(--line);background:var(--cream);padding:14px;box-shadow:var(--shadow);height:320px}.egg-chart canvas{width:100%!important;height:100%!important}.chart-empty{display:grid;place-items:center;height:100%;color:var(--muted);font:12px Consolas,monospace}
   </style>
 </head>
 <body>
@@ -64,6 +65,7 @@
     <div id="eggsPanel" class="tab-panel">
       <section class="egg-hero"><article class="egg-title"><div class="eyebrow">TASMON / session log</div><h2>Egg Drop<br>Summary</h2><p id="eggSessionMeta">Waiting for drops</p></article><div class="egg-summary"><article class="egg-stat"><h3>Total eggs</h3><strong id="eggTotal">0</strong></article><article class="egg-stat"><h3>Rare and above</h3><strong id="eggRareTotal">0</strong></article><article class="egg-stat"><h3>Eggs / hour</h3><strong id="eggSessionRate">--</strong></article><article class="egg-stat"><h3>Average interval</h3><strong id="eggInterval">--</strong></article></div></section>
       <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops recorded by this dashboard, including previous runs</div></div><div class="rarities" id="eggRarities"></div></section>
+      <section class="section"><div class="section-head"><div class="label">Drop chart</div><div class="note" id="eggChartNote">Real-time axis; best fit: -- eggs/hour. Hover points for quality.</div></div><div class="egg-chart" id="eggChartWrap"><canvas id="eggChart" aria-label="Cumulative egg drops over time" role="img"></canvas></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop timeline</div><div class="note">Newest drops appear first</div></div><div class="egg-table" id="eggTimeline"></div></section>
       <section class="section"><div class="section-head"><div class="label">Highlights</div><div class="note">Session-derived signals</div></div><div class="highlights"><article class="highlight"><h3>First drop</h3><strong id="eggFirstDrop">--</strong></article><article class="highlight"><h3>Best quality</h3><strong id="eggBestQuality">--</strong></article><article class="highlight"><h3>Most common</h3><strong id="eggMostCommon">--</strong></article></div></section>
     </div>
@@ -88,6 +90,7 @@
     </div>
     <p class="note warning" id="warning">Rates begin after the first two samples.</p>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
   <script>
     const number = (value, digits = 1) => Number.isFinite(value) ? value.toLocaleString("en-US", { maximumFractionDigits: digits }) : "--";
     const duration = (ms) => { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`; };
@@ -102,8 +105,47 @@
     ];
     const eggRarityRank = Object.fromEntries(eggRarities.map(([key], index) => [key, index]));
     const clock = (timestamp) => new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    let eggChart = null;
+    let eggChartSignature = "";
+    function renderEggChart(drops, sessionDrops) {
+      const wrap = $("eggChartWrap");
+      if (!window.Chart) { wrap.innerHTML = `<div class="chart-empty">Chart library unavailable.</div>`; return; }
+      const signature = `${drops.length}:${sessionDrops.length}:${drops.at(-1)?.timestamp ?? 0}:${drops.at(-1)?.rarity ?? ""}`;
+      if (signature === eggChartSignature) return;
+      eggChartSignature = signature;
+      if (!drops.length) { if (eggChart) { eggChart.destroy(); eggChart = null; } wrap.innerHTML = `<div class="chart-empty">No egg drops observed yet.</div>`; return; }
+      if (!$("eggChart")) wrap.innerHTML = `<canvas id="eggChart" aria-label="Cumulative egg drops over time" role="img"></canvas>`;
+      const cumulative = drops.map((drop, index) => ({ x: Number(drop.timestamp), y: index + 1, rarity: drop.rarity, intervalMs: index ? drop.timestamp - drops[index - 1].timestamp : null }));
+      const sessionStart = Math.max(0, drops.length - sessionDrops.length);
+      const sessionCumulative = drops.slice(sessionStart).map((drop, index) => ({ x: Number(drop.timestamp), y: index + 1 }));
+      const firstTimestamp = cumulative[0].x;
+      const lastTimestamp = cumulative.at(-1).x;
+      const spansMultipleDays = new Date(firstTimestamp).toDateString() !== new Date(lastTimestamp).toDateString();
+      const chartTimeLabel = (value) => new Date(Number(value)).toLocaleString([], spansMultipleDays
+        ? { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }
+        : { hour: "numeric", minute: "2-digit" });
+      const points = cumulative.map((point) => ({ x: (point.x - firstTimestamp) / 3600000, y: point.y }));
+      const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+      const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+      const variance = points.reduce((sum, point) => sum + Math.pow(point.x - meanX, 2), 0);
+      const slope = variance ? points.reduce((sum, point) => sum + (point.x - meanX) * (point.y - meanY), 0) / variance : 0;
+      const intercept = meanY - slope * meanX;
+      const fittedRate = Math.max(0, slope);
+      $("eggChartNote").textContent = `Real-time axis; best fit: ${number(fittedRate, 2)} eggs/hour. Hover points for quality.`;
+      const bestFit = [{ x: firstTimestamp, y: intercept }, { x: lastTimestamp, y: intercept + slope * ((lastTimestamp - firstTimestamp) / 3600000) }];
+      const rarityMeta = (rarity) => eggRarities.find(([key]) => key === rarity) ?? [rarity, rarity, "#7dff9b"];
+      const pointColor = (context) => rarityMeta(context.raw?.rarity)[2];
+      const pointSize = (context) => 3 + Math.min(4, eggRarityRank[context.raw?.rarity] ?? 0) * 0.5;
+      if (eggChart) eggChart.destroy();
+      eggChart = new Chart($("eggChart"), { type: "line", data: { datasets: [
+        { label: "All recorded eggs", data: cumulative, borderColor: "#146fba", backgroundColor: "rgba(20,111,186,.12)", fill: true, tension: .2, pointBackgroundColor: pointColor, pointBorderColor: "#10213b", pointRadius: pointSize, pointHoverRadius: 7 },
+        { label: "Current session", data: sessionCumulative, borderColor: "#2f9a56", backgroundColor: "transparent", stepped: true, pointRadius: 0, pointHoverRadius: 0, borderDash: [6, 4] },
+        { label: "Best fit", data: bestFit, borderColor: "#cf4d4d", backgroundColor: "transparent", pointRadius: 0, pointHoverRadius: 0, borderDash: [3, 5] },
+      ] }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: "nearest", intersect: true }, plugins: { legend: { labels: { color: "#10213b", font: { family: "Consolas" } } }, tooltip: { callbacks: { title: (items) => items[0]?.raw?.x ? new Date(Number(items[0].raw.x)).toLocaleString() : "", label: (context) => { const raw = context.raw; if (!raw.rarity) return `${context.dataset.label}: ${number(raw.y, 0)}`; const meta = rarityMeta(raw.rarity); const rate = raw.intervalMs > 0 ? 3600000 / raw.intervalMs : null; return `${meta[1]} egg · ${number(raw.y, 0)} cumulative${rate ? ` · ${number(rate, 1)} eggs/hour since prior drop` : ""}`; } } } }, scales: { x: { type: "linear", min: firstTimestamp, max: lastTimestamp === firstTimestamp ? firstTimestamp + 3600000 : lastTimestamp, ticks: { color: "#425775", maxRotation: 0, maxTicksLimit: 8, callback: (value) => chartTimeLabel(value) }, grid: { color: "rgba(9,47,91,.12)" }, title: { display: true, text: spansMultipleDays ? "Actual local date and time" : "Actual local time", color: "#425775" } }, y: { beginAtZero: true, ticks: { precision: 0, color: "#425775" }, grid: { color: "rgba(9,47,91,.12)" }, title: { display: true, text: "Cumulative eggs", color: "#425775" } } } } });
+    }
     function renderEggs(data) {
       const drops = data.eggDrops ?? [];
+      const sessionDrops = data.sessionEggDrops ?? [];
       const counts = Object.fromEntries(eggRarities.map(([key]) => [key, 0]));
       drops.forEach((drop) => { counts[drop.rarity] = (counts[drop.rarity] ?? 0) + 1; });
       const total = drops.length;
@@ -113,10 +155,11 @@
       const elapsed = Math.max(data.elapsedMs, 1);
       $("eggTotal").textContent = number(total, 0);
       $("eggRareTotal").textContent = `${number(rare, 0)}/${number(total, 0)}`;
-      $("eggSessionRate").textContent = total ? number(total * 3600000 / elapsed, 2) : "--";
+      $("eggSessionRate").textContent = sessionDrops.length ? number(sessionDrops.length * 3600000 / elapsed, 2) : "--";
       $("eggInterval").textContent = averageInterval ? duration(averageInterval) : "--";
-      $("eggSessionMeta").textContent = total ? `${duration(elapsed)} session | ${number(total, 0)} total eggs` : "Waiting for drops";
+      $("eggSessionMeta").textContent = total ? `${duration(elapsed)} session | ${number(sessionDrops.length, 0)} this session | ${number(total, 0)} total eggs` : "Waiting for drops";
       $("eggRarities").innerHTML = eggRarities.map(([key, label, color]) => `<article class="rarity-card" style="--rarity:${color}"><h3>${label}</h3><strong>${number(counts[key], 0)}</strong><span>${total ? number(counts[key] * 100 / total, 1) : "0.0"}% of drops</span></article>`).join("");
+      renderEggChart(drops, sessionDrops);
       $("eggTimeline").innerHTML = total ? `<div class="egg-row head"><span>Time</span><span>Drop</span><span>Session total</span></div>` + drops.slice().reverse().map((drop, index) => { const meta = eggRarities.find(([key]) => key === drop.rarity) ?? [drop.rarity, drop.rarity, "#c8ef7b"]; return `<div class="egg-row"><strong>${clock(drop.timestamp)}</strong><span><i class="egg-dot" style="--rarity:${meta[2]}"></i>${meta[1]}</span><span>${number(total - index, 0)} egg${total - index === 1 ? "" : "s"}</span></div>`; }).join("") : `<div class="empty">No egg drops observed yet.</div>`;
       const best = drops.reduce((current, drop) => !current || (eggRarityRank[drop.rarity] ?? 0) > (eggRarityRank[current.rarity] ?? 0) ? drop : current, null);
       const mostCommon = Object.entries(counts).sort((left, right) => right[1] - left[1])[0];
