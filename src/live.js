@@ -913,18 +913,39 @@ function ultraAutomationExpression({ open, condense }) {
     const result = { opened: 0, condensed: 0, protectedAwakeningSix: 0, skipped: [] };
     const speciesMeta = ${JSON.stringify(speciesMeta)};
     const ultraEggIndexes = () => (state.eggs ?? []).map((egg, index) => ({ egg, index })).filter(({ egg }) => egg.rarity === "ultra");
+    const closeHatchPopup = async () => {
+      const closeButton = document.querySelector("#hatch-overlay:not(.hidden) .hatch-close-btn");
+      if (closeButton) {
+        closeButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        for (let attempt = 0; attempt < 80 && !document.querySelector("#hatch-overlay.hidden"); attempt += 1) await sleep(100);
+      }
+      return Boolean(!document.querySelector("#hatch-overlay:not(.hidden)"));
+    };
     if (${Boolean(open)}) {
       for (const { egg } of ultraEggIndexes()) {
+        if (!(await closeHatchPopup())) { result.skipped.push("Hatch popup could not close: " + egg.id); continue; }
         const currentIndex = (state.eggs ?? []).findIndex((candidate) => candidate.id === egg.id);
         if (currentIndex < 0) continue;
-        const slots = [...document.querySelectorAll(".egg-slot")];
+        const slots = [...document.querySelectorAll(".egg-slot.filled")];
         const slot = slots[currentIndex];
         if (!slot) { result.skipped.push("Egg slot unavailable: " + egg.id); continue; }
         const before = state.eggs.length;
         slot.click();
         for (let attempt = 0; attempt < 80 && state.eggs.length >= before; attempt += 1) await sleep(100);
-        if (state.eggs.length < before) result.opened += 1;
-        else result.skipped.push("Hatch did not complete: " + egg.id);
+        if (state.eggs.length < before) {
+          let closeButton = null;
+          for (let attempt = 0; attempt < 120; attempt += 1) {
+            closeButton = document.querySelector("#hatch-overlay:not(.hidden) .hatch-close-btn");
+            if (closeButton) break;
+            await sleep(100);
+          }
+          if (closeButton) {
+            closeButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+            for (let attempt = 0; attempt < 80 && !document.querySelector("#hatch-overlay.hidden"); attempt += 1) await sleep(100);
+          }
+          if (document.querySelector("#hatch-overlay.hidden")) result.opened += 1;
+          else result.skipped.push("Hatch popup did not close: " + egg.id);
+        } else result.skipped.push("Hatch did not complete: " + egg.id);
       }
     }
     if (${Boolean(condense)}) {
