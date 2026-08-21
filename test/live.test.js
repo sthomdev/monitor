@@ -77,8 +77,8 @@ test("estimated chest rate uses kill rate and chest chance", () => {
   assert.ok(Math.abs(result.rates.estimatedChestsPerMinute - 5.4) < 1e-12);
 });
 
-test("live metrics record newly dropped eggs by rarity", () => {
-  const metrics = createLiveMetrics();
+test("live metrics keep historical drops out of the session egg rate", () => {
+  const metrics = createLiveMetrics({ initialEggDrops: [{ timestamp: 0, rarity: "common" }] });
   metrics.update({
     timestamp: 1_000,
     gold: 0,
@@ -97,5 +97,8 @@ test("live metrics record newly dropped eggs by rarity", () => {
     ],
   });
 
-  assert.deepEqual(metrics.read().eggDrops, [{ timestamp: 31_000, rarity: "rare" }]);
+  const result = metrics.read();
+  assert.deepEqual(result.eggDrops, [{ timestamp: 0, rarity: "common" }, { timestamp: 31_000, rarity: "rare" }]);
+  assert.deepEqual(result.sessionEggDrops, [{ timestamp: 31_000, rarity: "rare" }]);
+  assert.equal(result.rates.eggsPerHour, 0);
 });

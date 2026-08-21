@@ -33,6 +33,7 @@
     .awaken-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:16px}.awaken-group{border:2px solid var(--line);background:var(--cream);padding:12px;cursor:pointer;text-align:left}.awaken-group.active{border-color:var(--green);box-shadow:0 0 0 3px rgba(47,154,86,.25)}.awaken-group strong{display:block;color:var(--blue-deep)}.awaken-group span{color:var(--muted);font:11px Consolas,monospace}.awaken-mons{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:14px}.awaken-mon{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--cream);padding:10px;min-width:0}.awaken-mon input{width:18px;height:18px;accent-color:var(--green)}.awaken-mon.target{border-color:var(--amber)}.awaken-mon.disabled{opacity:.48}.awaken-mon-copy{min-width:0;flex:1}.awaken-mon-copy strong,.awaken-mon-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.awaken-mon-copy span{color:var(--muted);font:11px Consolas,monospace}.awaken-badge{font:10px Consolas,monospace;color:var(--amber)}.awaken-batch-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}.awaken-batch-actions .button:disabled{opacity:.5;cursor:not-allowed}.awaken-result{margin-top:12px;color:var(--green);font-weight:700}.awaken-result.error{color:var(--red)}
     .awaken-plan-tabs{display:flex;gap:4px;margin-top:18px;border-bottom:2px solid var(--line)}.awaken-plan-tab{border:2px solid transparent;border-bottom:0;background:transparent;color:var(--muted);padding:9px 13px;cursor:pointer;font:700 11px Consolas,monospace}.awaken-plan-tab.active{background:var(--cream);border-color:var(--line);color:var(--blue-deep)}.awaken-plan{border:2px solid var(--line);border-top:0;background:var(--cream);padding:14px}.awaken-plan-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.awaken-plan-head strong{color:var(--blue-deep)}.awaken-plan-head span,.awaken-plan-note{color:var(--muted);font-size:12px}.awaken-plan-goals{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.awaken-plan-goals label{display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--panel2);padding:6px 9px;color:var(--blue-deep);font:700 11px Consolas,monospace}.awaken-plan-goals input{accent-color:var(--green)}.awaken-plan-steps{display:grid;gap:6px;margin:12px 0}.awaken-plan-step{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;border-left:4px solid var(--green);background:var(--panel2);padding:8px 10px}.awaken-plan-step.chance{border-left-color:var(--amber)}.awaken-plan-step b{font:700 11px Consolas,monospace;color:var(--blue-deep);text-transform:uppercase}.awaken-plan-step span{min-width:0}.awaken-plan-step em{font-style:normal;color:var(--muted);font:11px Consolas,monospace}.awaken-plan-empty{color:var(--muted);padding:8px 0}.awaken-plan .button{margin-top:4px}
     .egg-chart{border:2px solid var(--line);background:var(--cream);padding:14px;box-shadow:var(--shadow);height:320px}.egg-chart canvas{width:100%!important;height:100%!important}.chart-empty{display:grid;place-items:center;height:100%;color:var(--muted);font:12px Consolas,monospace}
+    .egg-automation{display:flex;flex-wrap:wrap;align-items:center;gap:14px;border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px;box-shadow:var(--shadow)}.egg-automation label{display:flex;align-items:center;gap:7px;color:var(--blue-deep);font-weight:800}.egg-automation input{width:18px;height:18px;accent-color:var(--green)}.egg-automation-status{color:var(--muted);font:11px Consolas,monospace;flex:1;min-width:220px}
   </style>
 </head>
 <body>
@@ -64,6 +65,7 @@
     </div>
     <div id="eggsPanel" class="tab-panel">
       <section class="egg-hero"><article class="egg-title"><div class="eyebrow">TASMON / session log</div><h2>Egg Drop<br>Summary</h2><p id="eggSessionMeta">Waiting for drops</p></article><div class="egg-summary"><article class="egg-stat"><h3>Total eggs</h3><strong id="eggTotal">0</strong></article><article class="egg-stat"><h3>Rare and above</h3><strong id="eggRareTotal">0</strong></article><article class="egg-stat"><h3>Eggs / hour</h3><strong id="eggSessionRate">--</strong></article><article class="egg-stat"><h3>Average interval</h3><strong id="eggInterval">--</strong></article></div></section>
+      <section class="section"><div class="section-head"><div class="label">Ultra egg automation</div><div class="note">Opt-in; runs every 5 seconds while enabled</div></div><div class="egg-automation"><label><input type="checkbox" id="autoOpenUltra"> Auto-open ultra eggs</label><label><input type="checkbox" id="autoCondenseUltra"> Combine duplicate ultra monsters</label><span class="egg-automation-status" id="ultraAutomationStatus">Automation off</span></div></section>
       <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops recorded by this dashboard, including previous runs</div></div><div class="rarities" id="eggRarities"></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop chart</div><div class="note" id="eggChartNote">Real-time axis; best fit: -- eggs/hour. Hover points for quality.</div></div><div class="egg-chart" id="eggChartWrap"><canvas id="eggChart" aria-label="Cumulative egg drops over time" role="img"></canvas></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop timeline</div><div class="note">Newest drops appear first</div></div><div class="egg-table" id="eggTimeline"></div></section>
@@ -107,6 +109,22 @@
     const clock = (timestamp) => new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     let eggChart = null;
     let eggChartSignature = "";
+    async function updateUltraAutomation() {
+      const response = await fetch("/api/ultra-automation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ open: $("autoOpenUltra").checked, condense: $("autoCondenseUltra").checked }) });
+      const body = await response.text();
+      let data;
+      try { data = body ? JSON.parse(body) : {}; } catch { throw new Error(`Ultra automation API unavailable (HTTP ${response.status})`); }
+      if (!response.ok) throw new Error(data.error ?? `Unable to update ultra automation (HTTP ${response.status})`);
+      renderUltraAutomation(data);
+    }
+    function renderUltraAutomation(automation) {
+      if (!automation) return;
+      $("autoOpenUltra").checked = automation.open === true;
+      $("autoCondenseUltra").checked = automation.condense === true;
+      const last = automation.last;
+      const result = last && !last.error ? `Last run: opened ${last.opened ?? 0}, combined ${last.condensed ?? 0}; protected Aw VI: ${last.protectedAwakeningSix ?? 0}` : "";
+      $("ultraAutomationStatus").textContent = automation.lastError ? `Error: ${automation.lastError}` : automation.busy ? "Running..." : (automation.open || automation.condense ? result || "Automation enabled; waiting for next run" : "Automation off");
+    }
     function renderEggChart(drops, sessionDrops) {
       const wrap = $("eggChartWrap");
       if (!window.Chart) { wrap.innerHTML = `<div class="chart-empty">Chart library unavailable.</div>`; return; }
@@ -173,6 +191,7 @@
         const data = await response.json();
         const latest = data.latest;
         renderEggs(data);
+        renderUltraAutomation(data.ultraAutomation);
         $("turboPulse").classList.toggle("turbo-active", data.turbo === true);
         $("turboPulse").textContent = data.turbo === true ? "Pulse Turbo" : "Start Turbo";
         $("turboPhase").textContent = `Phase ${data.turboPhase ?? "idle"}`;
@@ -402,6 +421,8 @@
     $("awakeningDo").addEventListener("click", async () => { const chosen = target(); const foodIds = [...awakeningFoods]; if (!chosen || !foodIds.length) return; if (!window.confirm(`Awaken ${chosen.name} using ${foodIds.length} copies? The selected monsters will be consumed; equipment returns to inventory.`)) return; const button = $("awakeningDo"); button.disabled = true; try { const response = await fetch("/api/awaken", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetId: chosen.id, foodIds }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? data.result?.error ?? "Awakening failed"); $("awakeningResult").textContent = data.result.success ? `Success: ${chosen.name} reached awakening ${data.result.newLevel}.` : `Ritual completed; no tier gained (${data.result.sacrificed} consumed).`; await loadAwakenings(); } catch (error) { $("awakeningResult").textContent = error.message; $("awakeningResult").classList.add("error"); button.disabled = false; } });
     $("awakeningRefresh").addEventListener("click", loadAwakenings);
     loadAwakenings();
+    $("autoOpenUltra").addEventListener("change", () => updateUltraAutomation().catch((error) => { $("ultraAutomationStatus").textContent = `Error: ${error.message}`; }));
+    $("autoCondenseUltra").addEventListener("change", () => updateUltraAutomation().catch((error) => { $("ultraAutomationStatus").textContent = `Error: ${error.message}`; }));
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button === tab));
       document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));

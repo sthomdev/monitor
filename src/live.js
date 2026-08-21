@@ -699,6 +699,20 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
   let turboStack = 0;
   let turboLastAction = null;
   let turboLog = [];
+  const ultraAutomation = { open: false, condense: false, busy: false, last: null, lastError: null };
+  const runUltraAutomation = async () => {
+    if (ultraAutomation.busy || (!ultraAutomation.open && !ultraAutomation.condense)) return;
+    ultraAutomation.busy = true;
+    try {
+      ultraAutomation.last = await evaluateRuntime(ultraAutomationExpression(ultraAutomation), endpoint, { awaitPromise: true });
+      ultraAutomation.lastError = ultraAutomation.last?.error ?? null;
+    } catch (error) {
+      ultraAutomation.lastError = error.message;
+    } finally {
+      ultraAutomation.busy = false;
+    }
+  };
+  const ultraAutomationTimer = setInterval(runUltraAutomation, 5_000);
   const refreshTurboState = async () => {
     if (!turboEnabled) return;
     try {
@@ -746,7 +760,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     if (pathname === "/api/live") {
       await refreshTurboState();
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog }));
+      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog, ultraAutomation: { ...ultraAutomation } }));
       return;
     }
     if (pathname === "/api/keys") {
@@ -806,6 +820,20 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
       metrics.reset();
       response.writeHead(204);
       response.end();
+      return;
+    }
+    if (pathname === "/api/ultra-automation" && request.method === "POST") {
+      try {
+        const body = await readRequestBody(request);
+        ultraAutomation.open = body.open === true;
+        ultraAutomation.condense = body.condense === true;
+        await runUltraAutomation();
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify({ ...ultraAutomation }));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message }));
+      }
       return;
     }
     if (pathname === "/api/turbo" && request.method === "POST") {
@@ -868,8 +896,104 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
 
   server.on("close", () => {
     clearInterval(timer);
+    clearInterval(ultraAutomationTimer);
     if (turboRefreshTimer) clearInterval(turboRefreshTimer);
   });
   await new Promise((resolve) => server.listen(port, host, resolve));
   return server;
+}
+
+function ultraAutomationExpression({ open, condense }) {
+  const speciesMeta = Object.fromEntries(Object.entries(SPECIES).map(([id, species]) => [id, { rarity: species.rarity }]));
+  return `(async () => {
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const debug = window.__battleDebug?.();
+    const state = debug?.state;
+    if (!state) return { error: "TASMON debug object is unavailable" };
+    const result = { opened: 0, condensed: 0, protectedAwakeningSix: 0, skipped: [] };
+    const speciesMeta = ${JSON.stringify(speciesMeta)};
+    const ultraEggIndexes = () => (state.eggs ?? []).map((egg, index) => ({ egg, index })).filter(({ egg }) => egg.rarity === "ultra");
+    if (${Boolean(open)}) {
+      for (const { egg } of ultraEggIndexes()) {
+        const currentIndex = (state.eggs ?? []).findIndex((candidate) => candidate.id === egg.id);
+        if (currentIndex < 0) continue;
+        const slots = [...document.querySelectorAll(".egg-slot")];
+        const slot = slots[currentIndex];
+        if (!slot) { result.skipped.push("Egg slot unavailable: " + egg.id); continue; }
+        const before = state.eggs.length;
+        slot.click();
+        for (let attempt = 0; attempt < 80 && state.eggs.length >= before; attempt += 1) await sleep(100);
+        if (state.eggs.length < before) result.opened += 1;
+        else result.skipped.push("Hatch did not complete: " + egg.id);
+      }
+    }
+    if (${Boolean(condense)}) {
+      const groups = new Map();
+      for (const monster of Object.values(state.monsters ?? {})) {
+        const species = speciesMeta[monster.speciesId];
+        if (species?.rarity !== "ultra") continue;
+        const list = groups.get(monster.speciesId) ?? [];
+        list.push(monster);
+        groups.set(monster.speciesId, list);
+      }
+      const clickMonster = async (id) => {
+        for (let page = 0; page < 30; page += 1) {
+          const cell = document.querySelector('.mon-cell[data-mon="' + CSS.escape(id) + '"]');
+          if (cell) { cell.click(); await sleep(150); return true; }
+          const tabs = [...document.querySelectorAll(".page-tab")];
+          if (!tabs[page + 1]) break;
+          tabs[page + 1].click();
+          await sleep(150);
+        }
+        return false;
+      };
+      const openRitual = async () => {
+        let panel = document.querySelector("#compound-panel");
+        if (!panel || panel.classList.contains("hidden")) {
+          const compound = document.querySelector('.bar-tab[data-win="compound"]') ?? document.querySelector(".feed-btn");
+          if (!compound) return false;
+          compound.click();
+          await sleep(200);
+          panel = document.querySelector("#compound-panel");
+        }
+        const ritualTab = [...(panel?.querySelectorAll(".cmp-tab") ?? [])].find((tab) => /覚醒|Awaken/i.test(tab.textContent));
+        if (ritualTab) ritualTab.click();
+        await sleep(200);
+        return Boolean(panel && ritualTab);
+      };
+      const clearRitualTarget = async () => {
+        const clearButton = document.querySelector("#compound-panel .cmp-slot:not(.cmp-empty) .cmp-x");
+        if (clearButton) {
+          clearButton.click();
+          await sleep(150);
+        }
+      };
+      for (const monsters of groups.values()) {
+        const party = new Set(state.party ?? []);
+        const expedition = new Set((state.expeditions ?? []).flatMap((group) => Array.isArray(group) ? group : (group.members ?? [])));
+        const eligible = monsters.filter((monster) => (monster.awakening ?? 0) < 6 && !monster.fav && !party.has(monster.id) && !expedition.has(monster.id));
+        const protectedCount = monsters.filter((monster) => (monster.awakening ?? 0) >= 6).length;
+        result.protectedAwakeningSix += protectedCount;
+        eligible.sort((left, right) => (left.awakening ?? 0) - (right.awakening ?? 0));
+        for (let index = 0; index + 1 < eligible.length; index += 2) {
+          const target = eligible[index];
+          const food = eligible[index + 1];
+          await clearRitualTarget();
+          if (!(await openRitual()) || !(await clickMonster(target.id)) || !(await clickMonster(food.id))) {
+            result.skipped.push("No ritual path for " + target.speciesId);
+            continue;
+          }
+          const beforeCount = Object.keys(state.monsters).length;
+          const ritualButton = [...document.querySelectorAll("button.cmp-cta")].find((button) => !button.disabled && /儀式|rite|awaken/i.test(button.textContent));
+          if (!ritualButton) { result.skipped.push("Ritual button unavailable for " + target.speciesId); continue; }
+          ritualButton.click();
+          for (let attempt = 0; attempt < 80 && Object.keys(state.monsters).length >= beforeCount; attempt += 1) await sleep(100);
+          if (Object.keys(state.monsters).length < beforeCount) result.condensed += 1;
+          else result.skipped.push("Ritual did not consume pair for " + target.speciesId);
+          await clearRitualTarget();
+        }
+      }
+    }
+    return result;
+  })()`;
 }
