@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { craftableGroupCount } from "../src/craft-controller.js";
+import { craftableGroupCount, selectCraftGroup } from "../src/craft-controller.js";
 
 function items(count, overrides = {}) {
   return Array.from({ length: count }, (_, index) => ({
@@ -36,4 +36,14 @@ test("stat thresholds can be overridden", () => {
     }),
     [],
   );
+});
+
+test("combined crafting gives charm groups a turn before returning to gear", () => {
+  const groups = [
+    { mode: "gear", batches: 4, count: 36 },
+    { mode: "charm", batches: 1, count: 9 },
+  ];
+
+  assert.equal(selectCraftGroup(groups, "both", "charm").mode, "charm");
+  assert.equal(selectCraftGroup(groups, "both", "gear").mode, "gear");
 });

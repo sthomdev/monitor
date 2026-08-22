@@ -91,6 +91,11 @@ export function craftableGroupCount(snapshot, mode = "gear", thresholds = {}) {
     .sort((left, right) => right.count - left.count);
 }
 
+export function selectCraftGroup(groups, mode = "gear", preferredMode = mode) {
+  return groups.find((group) => group.batches > 0 && (mode !== "both" || group.mode === preferredMode))
+    ?? groups.find((group) => group.batches > 0);
+}
+
 async function gameAction(expression, endpoint) {
   return evaluateRuntime(expression, endpoint, { awaitPromise: true });
 }
@@ -219,6 +224,7 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
 
   const results = [];
   let exitReason = loop ? "stopped-by-user" : "max-runs-reached";
+  let preferredMode = mode === "both" ? "charm" : mode;
   for (let run = 0; (loop || run < maxRuns) && !signal?.aborted; run += 1) {
     let chests = { ok: true, opened: 0, remaining: 0 };
     if (mode !== "charm") {
@@ -237,12 +243,12 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
     }
     let before = await evaluateRuntime(SNAPSHOT, endpoint);
     let groups = craftableGroupCount(before, mode, { minAtkPct, minSkillPower });
-    let group = groups.find((candidate) => candidate.batches > 0);
+    let group = selectCraftGroup(groups, mode, preferredMode);
     let includeStorage = false;
     if (!group) {
       const withStorage = await evaluateRuntime(SNAPSHOT_WITH_STORAGE, endpoint);
       const storageGroups = craftableGroupCount(withStorage, mode, { minAtkPct, minSkillPower });
-      const storageGroup = storageGroups.find((candidate) => candidate.batches > 0);
+      const storageGroup = selectCraftGroup(storageGroups, mode, preferredMode);
       if (storageGroup) {
         groups = storageGroups;
         group = storageGroup;
@@ -310,6 +316,7 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
       }
     }
     results.push({ run: run + 1, crafted: true, slots: action.slots, verified, alchemy, chests, before, after });
+    if (mode === "both") preferredMode = group.mode === "charm" ? "gear" : "charm";
     const eggMessage = group.mode === "gear" ? `; alchemized ${alchemy.count} common/rare eggs` : "";
     log(loop
       ? `Craft ${run + 1}: verified${eggMessage}; opened ${chests.opened} chests; next run in 10 seconds`

@@ -747,7 +747,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
   const ultraAutomationTimer = setInterval(runUltraAutomation, 5_000);
   const craftAutomation = {
     running: false,
-    mode: "gear",
+    mode: "both",
     minAtkPct: 0.9,
     minSkillPower: 0.4,
     runs: 0,
