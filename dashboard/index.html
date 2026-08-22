@@ -58,14 +58,15 @@
       <article class="card"><h2>Chest bonus</h2><div class="value" id="chestBonus">--</div><div class="detail">Uncapped normal chest multiplier</div></article>
       <article class="card"><h2>Estimated chests / minute</h2><div class="value mint" id="chestRate">--</div><div class="detail">Buffed (unbuffed baseline in parentheses)</div></article>
     </section>
+    <section class="section"><div class="section-head"><div class="label">KPM history</div><div class="note">One-second samples; last 60 minutes</div></div><div class="egg-chart" id="kpmChartWrap"><canvas id="kpmChart" aria-label="Kills per minute over the last hour" role="img"></canvas></div></section>
     <section class="section"><div class="section-head"><div class="label">Global stat caps</div><div class="note">Excess is wasted by the game cap</div></div><div class="caps" id="caps"><div class="cap-row head"><span>Stat</span><span>Current</span><span>Cap</span><span>Excess</span></div></div></section>
     <section class="section"><div class="section-head"><div class="label">Party progress</div><div class="note">30s rolling average</div></div><div class="table" id="party"><div class="row head"><span>Tasmon</span><span>Level</span><span>Current XP</span><span>XP/min</span><span>Time to level</span></div></div></section>
-    <section class="section"><div class="section-head"><div class="label">Attack report</div><a class="wiki-link" href="/report.html" target="_blank" rel="noreferrer">Open report separately</a></div><div class="embed"><iframe src="/report.html" title="TASMON attack report"></iframe></div></section>
+    <section class="section"><div class="section-head"><div class="label">Attack report</div><a class="wiki-link" href="/api/report" target="_blank" rel="noreferrer">Open live report separately</a></div><div class="embed"><iframe src="/api/report" title="TASMON live attack report"></iframe></div></section>
     <section class="section"><div class="section-head"><div class="label">Analyzer wiki</div><a class="wiki-link" href="/context.md" target="_blank" rel="noreferrer">Open full context.md</a></div><div class="wiki"><article class="wiki-card"><h3>Combat and buffs</h3><p>Party attack combines base stats, level, IV, rarity, passive, awakening, job, equipment, perks, breeding, collection, and elemental effects.</p><ul><li>Ribbon Bat Rally: +14% party attack for 5s every 7s.</li><li>Its +7% personal attack passive is separate from the active buff.</li><li>50% CDR is the cap; permanent Rally uptime starts at 28.57% CDR.</li></ul></article><article class="wiki-card"><h3>Skill descriptions</h3><p><code>Attack xN</code> is the active skill power. For nukes, it multiplies the caster's resolved attack, then gear/perk/job skill power adds another multiplier.</p><ul><li>Nuke: <code>monsterAtk × active power × skill-power multiplier</code>, then buffs, element, role, boss/trial, and crit effects.</li><li>Awakening changes skill power and cooldown separately from skill-power gear.</li><li>Multi-hit uses power × hits; DoT spreads the result over time.</li><li>Buff power is direct: Ribbon Bat Rally's 0.14 means +14%, and ordinary skill power does not scale it.</li><li>Passive attack and active skill power are separate effects.</li></ul></article><article class="wiki-card"><h3>Scaling stats</h3><p>After capped bonuses are filled, prioritize stats that continue improving damage, uptime, or progression.</p><ul><li>Attack: raises normal-hit and skill damage.</li><li>Skill power: raises eligible direct-damage skills and some skill effects.</li><li>Flat and percentage attack: both remain useful because they feed the attack formula.</li><li>Element advantage and elemental attack: valuable against matching targets.</li><li>Attack frequency: attack speed, extra hits, and damage-over-time effects improve DPS.</li><li>Awakening, evolution, level, IVs, breeding, and collection bonuses improve combat output.</li></ul></article><article class="wiki-card wiki-wide"><h3>Area of effect skills</h3><p class="skill-note">These skills hit all current enemies. Multipliers are the active attack multiplier; normal skill rolls exclude signature and enhancement-only skills.</p><div class="skill-table"><div class="skill-row head"><span>Skill</span><span>ID</span><span>Stars</span><span>Power / CD</span><span>Availability</span></div><div class="skill-row"><strong>やみのかぜ</strong><span>darkwind</span><span>4</span><span>×3.3 / 5s</span><span>Normal</span></div><div class="skill-row"><strong>とげのムチ</strong><span>thornlash</span><span>2</span><span>×2.1 / 5s</span><span>Normal</span></div><div class="skill-row"><strong>だいちのキバ</strong><span>terrafang</span><span>3</span><span>×2.8 / 6s</span><span>Normal</span></div><div class="skill-row"><strong>創世のノヴァ</strong><span>genesisnova</span><span>10</span><span>×13 / 7s</span><span>seraphdrake</span></div><div class="skill-row"><strong>流星の裁き</strong><span>meteorruin</span><span>7</span><span>×9.8 / 6s</span><span>Normal</span></div><div class="skill-row"><strong>チェーンライトニング</strong><span>chainbolt</span><span>3</span><span>×2.4 / 10s</span><span>Normal</span></div><div class="skill-row"><strong>ブリザードラ</strong><span>blizzardra</span><span>5</span><span>×3.2 / 12s</span><span>Normal</span></div><div class="skill-row"><strong>アースクエイク</strong><span>quakebreak</span><span>6</span><span>×3.6 / 13s</span><span>Normal</span></div><div class="skill-row"><strong>メテオフォール</strong><span>meteorfall</span><span>7</span><span>×4.6 / 15s</span><span>Normal</span></div><div class="skill-row"><strong>ゴールデンストーム</strong><span>goldenstorm</span><span>9</span><span>×4.2 / 12s</span><span>Enhancement-only</span></div><div class="skill-row"><strong>パイロストライク</strong><span>flamewispstrike</span><span>1</span><span>×2.5 / 7s</span><span>Normal</span></div><div class="skill-row"><strong>エンバーブラスト</strong><span>cinderdrakestrike</span><span>1</span><span>×2.1 / 6s</span><span>Normal</span></div><div class="skill-row"><strong>パイロストライク2</strong><span>salamanderstrike</span><span>1</span><span>×1.8 / 5s</span><span>Normal</span></div><div class="skill-row"><strong>ダスクインパクト</strong><span>duskwyvernstrike</span><span>2</span><span>×2.8 / 5s</span><span>Normal</span></div><div class="skill-row"><strong>ゼファーインパクト</strong><span>gusthawkstrike</span><span>3</span><span>×3.5 / 6s</span><span>Normal</span></div><div class="skill-row"><strong>ブレイズストライク</strong><span>drakelordstrike</span><span>4</span><span>×4.2 / 5s</span><span>drakelord</span></div><div class="skill-row"><strong>シャインインパクト</strong><span>valkyriestrike</span><span>5</span><span>×4.9 / 6s</span><span>valkyrie</span></div></div></article></div></section>
     </div>
     <div id="eggsPanel" class="tab-panel">
       <section class="egg-hero"><article class="egg-title"><div class="eyebrow">TASMON / session log</div><h2>Egg Drop<br>Summary</h2><p id="eggSessionMeta">Waiting for drops</p></article><div class="egg-summary"><article class="egg-stat"><h3>Total eggs</h3><strong id="eggTotal">0</strong></article><article class="egg-stat"><h3>Rare and above</h3><strong id="eggRareTotal">0</strong></article><article class="egg-stat"><h3>Eggs / hour</h3><strong id="eggSessionRate">--</strong></article><article class="egg-stat"><h3>Average interval</h3><strong id="eggInterval">--</strong></article></div></section>
-      <section class="section"><div class="section-head"><div class="label">Ultra egg automation</div><div class="note">Opt-in; runs every 5 seconds while enabled</div></div><div class="egg-automation"><label><input type="checkbox" id="autoOpenUltra"> Auto-open ultra eggs</label><label><input type="checkbox" id="autoCondenseUltra"> Combine duplicate ultra monsters</label><span class="egg-automation-status" id="ultraAutomationStatus">Automation off</span></div></section>
+      <section class="section"><div class="section-head"><div class="label">Ultra egg automation</div><div class="note">Opt-in; runs every 5 seconds while enabled</div></div><div class="egg-automation"><label><input type="checkbox" id="autoOpenUltra"> Auto-open ultra eggs</label><label><input type="checkbox" id="autoCondenseUltra"> Awaken duplicate ultra and legendary monsters</label><span class="egg-automation-status" id="ultraAutomationStatus">Automation off</span></div></section>
       <section class="section"><div class="section-head"><div class="label">Rarity summary</div><div class="note">Drops recorded by this dashboard, including previous runs</div></div><div class="rarities" id="eggRarities"></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop chart</div><div class="note" id="eggChartNote">Real-time axis; best fit: -- eggs/hour. Hover points for quality.</div></div><div class="egg-chart" id="eggChartWrap"><canvas id="eggChart" aria-label="Cumulative egg drops over time" role="img"></canvas></div></section>
       <section class="section"><div class="section-head"><div class="label">Drop timeline</div><div class="note">Newest drops appear first</div></div><div class="egg-table" id="eggTimeline"></div></section>
@@ -85,8 +86,8 @@
     </div>
     <div id="turboPanel" class="tab-panel">
       <section class="section"><div class="section-head"><div class="label">Turbo reproduction</div><div class="note">Each pulse adds one timer layer</div></div>
-        <p class="awaken-note">Turbo mirrors the observed loop transition: it selects 10-7 until nine keys are available, enables that stage's loop control, and adds one extra deferred wave callback layer per pulse. Once nine keys exist, it switches to the boss loop. This is an experimental reproduction of the game's pending-callback behavior.</p>
-        <div class="actions"><div class="meta"><span id="turboPhase">Phase --</span><span id="turboStack">Layers --</span><span id="turboKeys">Keys --</span></div><div><button class="button turbo" id="turboPulse" type="button">Pulse Turbo</button> <button class="button" id="turboStop" type="button">Stop</button></div></div>
+        <p class="awaken-note">Turbo rotates through 10-7 → 10-10 boss, 10-8 → 10-10 boss, and 10-9 → 10-10 boss. Each stage transition explicitly selects the boss lap so keys are used instead of accumulating on a farming stage. Each pulse enables the selected loop and adds one extra deferred wave callback layer.</p>
+        <div class="actions"><div class="meta"><span id="turboPhase">Phase --</span><span id="turboStack">Layers --</span><span id="turboKeys">Keys --</span><span id="turboTarget">Target 1000 KPM</span></div><div><button class="button turbo" id="turboPulse" type="button">Start Turbo</button> <button class="button" id="turboStop" type="button">Stop</button></div></div>
         <pre class="turbo-console" id="turboConsole">Turbo console waiting.</pre>
       </section>
     </div>
@@ -109,6 +110,9 @@
     const clock = (timestamp) => new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     let eggChart = null;
     let eggChartSignature = "";
+    let kpmChart = null;
+    let kpmChartSignature = "";
+    let attackReportSignature = "";
     async function updateUltraAutomation() {
       const response = await fetch("/api/ultra-automation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ open: $("autoOpenUltra").checked, condense: $("autoCondenseUltra").checked }) });
       const body = await response.text();
@@ -185,15 +189,55 @@
       $("eggBestQuality").textContent = best ? (eggRarities.find(([key]) => key === best.rarity)?.[1] ?? best.rarity) : "--";
       $("eggMostCommon").textContent = mostCommon?.[1] ? (eggRarities.find(([key]) => key === mostCommon[0])?.[1] ?? mostCommon[0]) : "--";
     }
+    function renderKpmChart(history) {
+      const wrap = $("kpmChartWrap");
+      if (!window.Chart) { wrap.innerHTML = `<div class="chart-empty">Chart library unavailable.</div>`; return; }
+      const samples = (history ?? []).filter((sample) => Number.isFinite(sample.timestamp) && Number.isFinite(sample.killsPerMinute));
+      const signature = `${samples.length}:${samples.at(-1)?.timestamp ?? 0}:${samples.at(-1)?.killsPerMinute ?? 0}`;
+      if (signature === kpmChartSignature) return;
+      kpmChartSignature = signature;
+      if (!samples.length) { if (kpmChart) { kpmChart.destroy(); kpmChart = null; } wrap.innerHTML = `<div class="chart-empty">No KPM samples yet.</div>`; return; }
+      if (!$("kpmChart")) wrap.innerHTML = `<canvas id="kpmChart" aria-label="Kills per minute over the last hour" role="img"></canvas>`;
+      const first = samples[0].timestamp;
+      const last = samples.at(-1).timestamp;
+      const formatTime = (value) => new Date(Number(value)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      if (kpmChart) kpmChart.destroy();
+      kpmChart = new Chart($("kpmChart"), { type: "line", data: { datasets: [{ label: "Kills per minute", data: samples.map((sample) => ({ x: sample.timestamp, y: sample.killsPerMinute })), borderColor: "#146fba", backgroundColor: "rgba(20,111,186,.12)", fill: true, tension: .15, pointRadius: 0, pointHoverRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: "nearest", intersect: false }, plugins: { legend: { labels: { color: "#10213b", font: { family: "Consolas" } } }, tooltip: { callbacks: { title: (items) => items[0]?.raw?.x ? new Date(Number(items[0].raw.x)).toLocaleString() : "", label: (context) => `KPM: ${number(context.raw.y, 2)}` } } }, scales: { x: { type: "linear", min: Math.min(first, last - 3600000), max: Math.max(last, first + 3600000), ticks: { color: "#425775", maxRotation: 0, maxTicksLimit: 8, callback: (value) => formatTime(value) }, grid: { color: "rgba(9,47,91,.12)" }, title: { display: true, text: "Local time", color: "#425775" } }, y: { beginAtZero: true, ticks: { color: "#425775" }, grid: { color: "rgba(9,47,91,.12)" }, title: { display: true, text: "Kills per minute", color: "#425775" } } } } });
+    }
+    const turboTargetKpm = 1000;
+    const turboIntervalMs = 10000;
+    let turboController = null;
+    let latestLiveData = null;
+    let turboPulseBusy = false;
+    async function pulseTurboIfNeeded(force = false) {
+      if (turboPulseBusy || !turboController) return;
+      const kpm = Number(latestLiveData?.rates?.killsPerMinute ?? 0);
+      if (!force && kpm >= turboTargetKpm) return;
+      turboPulseBusy = true;
+      try {
+        await fetch("/api/turbo", { method: "POST" });
+        await refresh();
+      } finally {
+        turboPulseBusy = false;
+      }
+    }
     async function refresh() {
       try {
         const response = await fetch(`/api/live?t=${Date.now()}`, { cache: "no-store" });
         const data = await response.json();
+        latestLiveData = data;
+        renderKpmChart(data.kpmHistory);
         const latest = data.latest;
+        const reportSignature = JSON.stringify(latest?.report ?? null);
+        if (reportSignature !== attackReportSignature) {
+          attackReportSignature = reportSignature;
+          const reportFrame = document.querySelector('iframe[title="TASMON live attack report"]');
+          if (reportFrame && latest?.report) reportFrame.src = `/api/report?t=${encodeURIComponent(latest.timestamp ?? Date.now())}`;
+        }
         renderEggs(data);
         renderUltraAutomation(data.ultraAutomation);
         $("turboPulse").classList.toggle("turbo-active", data.turbo === true);
-        $("turboPulse").textContent = data.turbo === true ? "Pulse Turbo" : "Start Turbo";
+        $("turboPulse").textContent = data.turbo === true ? "Turbo running" : "Start Turbo";
         $("turboPhase").textContent = `Phase ${data.turboPhase ?? "idle"}`;
         $("turboStack").textContent = `Layers ${data.turboStack ?? 0}`;
         $("turboKeys").textContent = `Keys ${data.turboKeys ?? 0}/9`;
@@ -429,11 +473,16 @@
     }));
     $("reset").addEventListener("click", async () => { await fetch("/api/reset", { method: "POST" }); refresh(); });
     $("turboPulse").addEventListener("click", async () => {
-      const response = await fetch("/api/turbo", { method: "POST" });
-      if (!response.ok) throw new Error((await response.json()).error ?? "Unable to pulse Turbo");
+      if (turboController) return;
+      turboController = setInterval(() => pulseTurboIfNeeded(), turboIntervalMs);
+      await pulseTurboIfNeeded(true);
+    });
+    $("turboStop").addEventListener("click", async () => {
+      if (turboController) clearInterval(turboController);
+      turboController = null;
+      await fetch("/api/turbo/stop", { method: "POST" });
       refresh();
     });
-    $("turboStop").addEventListener("click", async () => { await fetch("/api/turbo/stop", { method: "POST" }); refresh(); });
     refresh(); setInterval(refresh, 1000);
   </script>
 </body>

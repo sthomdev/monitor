@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateRuntime } from "./cdp.js";
 import { AWAKENING, AWAKEN_MAX, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, RARITY_META, RARITY_ORDER, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
+import { resolvePartyAttack } from "./real-stats.js";
+import { renderReport } from "./report.js";
 
 const LEVEL_CAP = 100;
 const EMA_TIME_CONSTANT_MS = 30_000;
@@ -18,6 +20,7 @@ const EQUIP_DROP_CHANCE = 0.045;
 const NORMAL_CHEST_BONUS_MULT = 1.5;
 const ROOKIE_CHEST_MULT = 1.5;
 const STAGES_PER_DIFFICULTY = 10;
+const KPM_HISTORY_LIMIT = 3601;
 const RARE_CHOICE_BASE = 0.08;
 const RARE_CHOICE_PER_STAR = 0.012;
 
@@ -358,6 +361,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
     kills: 0,
     eggDrops: [...initialEggDrops],
     sessionEggDrops: [],
+    kpmHistory: [],
     elapsedMs: 0,
     ema: {
       grossGoldPerMinute: null,
@@ -424,6 +428,8 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
       }
       session.last = snapshot;
       session.latest = snapshot;
+      session.kpmHistory.push({ timestamp: now, killsPerMinute: session.ema.killsPerMinute ?? 0 });
+      if (session.kpmHistory.length > KPM_HISTORY_LIMIT) session.kpmHistory.splice(0, session.kpmHistory.length - KPM_HISTORY_LIMIT);
       session.error = null;
     },
     fail(error) {
@@ -442,6 +448,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
         kills: session.kills,
         eggDrops: session.eggDrops,
         sessionEggDrops: session.sessionEggDrops,
+        kpmHistory: session.kpmHistory,
         smoothing: "EMA",
         smoothingTimeConstantMs: EMA_TIME_CONSTANT_MS,
         rates: {
@@ -465,6 +472,7 @@ export function createLiveMetrics({ initialEggDrops = [], persistEggDrops = () =
       session.experienceByMember.clear();
       session.kills = 0;
       session.sessionEggDrops = [];
+      session.kpmHistory = [];
       session.elapsedMs = 0;
       session.ema.grossGoldPerMinute = null;
       session.ema.netGoldPerMinute = null;
@@ -586,7 +594,7 @@ async function setTurboRespawn(enabled, endpoint) {
         existing.restore();
         return false;
       }
-      if (existing.version === 4 && existing.enabled && typeof existing.pulse === "function") {
+      if (existing.version === 7 && existing.enabled && typeof existing.pulse === "function") {
         return existing.pulse();
       }
       existing.restore();
@@ -594,11 +602,12 @@ async function setTurboRespawn(enabled, endpoint) {
     if (!${enabled}) return false;
     const original = window.setTimeout;
     const turbo = {
-      version: 4,
+      version: 7,
       enabled: true,
       stack: 0,
       phase: "idle",
       keyCount: 0,
+      stageIndex: 0,
       lastAction: "installed",
       log: [],
       restore() {
@@ -649,9 +658,11 @@ async function setTurboRespawn(enabled, endpoint) {
         turbo.stack += 1;
         if (window.setTimeout !== turbo.wrapper) window.setTimeout = turbo.wrapper;
         const keys = turbo.bossKeyCount();
-        turbo.phase = keys >= 9 ? "boss-10-10" : "farm-10-7";
+        const stages = ["[10-7]", "[10-10]", "[10-8]", "[10-10]", "[10-9]", "[10-10]"];
+        const target = stages[turbo.stageIndex % stages.length];
+        turbo.stageIndex = (turbo.stageIndex + 1) % stages.length;
+        turbo.phase = target === "[10-10]" ? "boss-10-10" : "farm-" + target.slice(1, -1);
         turbo.keyCount = keys;
-        const target = keys >= 9 ? "[10-10]" : "[10-7]";
         const stageAction = turbo.stageNode(target);
         const loopAction = turbo.loopNode(target);
         turbo.write(stageAction + "/" + loopAction, { phase: turbo.phase, keyCount: keys, target, layers: turbo.stack });
@@ -671,7 +682,7 @@ async function setTurboRespawn(enabled, endpoint) {
   })()`, endpoint);
 }
 
-export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endpoint } = {}) {
+export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endpoint, runtime } = {}) {
   const initialEggDrops = await readEggLog();
   let persistChain = Promise.resolve();
   const persistEggDrops = (drops) => {
@@ -684,6 +695,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     try {
       const snapshot = await readLiveSnapshot(endpoint);
       if (!snapshot) throw new Error("TASMON debug object is unavailable");
+      snapshot.report = resolvePartyAttack(snapshot.rateState, runtime);
       metrics.update(snapshot);
     } catch (error) {
       metrics.fail(error);
@@ -723,6 +735,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
           return turbo ? {
             enabled: turbo.enabled,
             stack: turbo.stack,
+            phase: turbo.phase,
             lastAction: turbo.lastAction,
             log: turbo.log,
           } : null;
@@ -730,7 +743,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
       ]);
       if (!runtime?.enabled) return;
       turboKeys = keys?.current ?? 0;
-      turboPhase = turboKeys >= 9 ? "boss-10-10" : "farm-10-7";
+      turboPhase = runtime.phase ?? turboPhase;
       turboStack = runtime.stack ?? turboStack;
       turboLastAction = runtime.lastAction ?? turboLastAction;
       turboLog = runtime.log ?? turboLog;
@@ -761,6 +774,17 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
       await refreshTurboState();
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
       response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog, ultraAutomation: { ...ultraAutomation } }));
+      return;
+    }
+    if (pathname === "/api/report") {
+      const latest = metrics.read().latest;
+      if (!latest?.report) {
+        response.writeHead(503, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+        response.end("Live party report is not available yet");
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      response.end(renderReport({ party: latest.report, generatedAt: new Date(latest.timestamp).toISOString() }));
       return;
     }
     if (pathname === "/api/keys") {
@@ -952,7 +976,7 @@ function ultraAutomationExpression({ open, condense }) {
       const groups = new Map();
       for (const monster of Object.values(state.monsters ?? {})) {
         const species = speciesMeta[monster.speciesId];
-        if (species?.rarity !== "ultra") continue;
+        if (!species || !["ultra", "legend"].includes(species.rarity)) continue;
         const list = groups.get(monster.speciesId) ?? [];
         list.push(monster);
         groups.set(monster.speciesId, list);

@@ -169,7 +169,8 @@ async function runExportSave(args) {
 async function runLive(args) {
   const port = Number(args.shift() ?? 4173);
   const cdpPort = args.shift() ?? "9222";
-  const server = await startLiveDashboard({ port, endpoint: `http://127.0.0.1:${cdpPort}` });
+  const runtime = await loadGameRuntime(defaultArchive, path.join(projectRoot, ".runtime"));
+  const server = await startLiveDashboard({ port, endpoint: `http://127.0.0.1:${cdpPort}`, runtime });
   console.log(`Live dashboard -> http://127.0.0.1:${port}`);
   await new Promise((resolve) => server.on("close", resolve));
 }
