@@ -34,6 +34,7 @@
     .awaken-plan-tabs{display:flex;gap:4px;margin-top:18px;border-bottom:2px solid var(--line)}.awaken-plan-tab{border:2px solid transparent;border-bottom:0;background:transparent;color:var(--muted);padding:9px 13px;cursor:pointer;font:700 11px Consolas,monospace}.awaken-plan-tab.active{background:var(--cream);border-color:var(--line);color:var(--blue-deep)}.awaken-plan{border:2px solid var(--line);border-top:0;background:var(--cream);padding:14px}.awaken-plan-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.awaken-plan-head strong{color:var(--blue-deep)}.awaken-plan-head span,.awaken-plan-note{color:var(--muted);font-size:12px}.awaken-plan-goals{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.awaken-plan-goals label{display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--panel2);padding:6px 9px;color:var(--blue-deep);font:700 11px Consolas,monospace}.awaken-plan-goals input{accent-color:var(--green)}.awaken-plan-steps{display:grid;gap:6px;margin:12px 0}.awaken-plan-step{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;border-left:4px solid var(--green);background:var(--panel2);padding:8px 10px}.awaken-plan-step.chance{border-left-color:var(--amber)}.awaken-plan-step b{font:700 11px Consolas,monospace;color:var(--blue-deep);text-transform:uppercase}.awaken-plan-step span{min-width:0}.awaken-plan-step em{font-style:normal;color:var(--muted);font:11px Consolas,monospace}.awaken-plan-empty{color:var(--muted);padding:8px 0}.awaken-plan .button{margin-top:4px}
     .egg-chart{border:2px solid var(--line);background:var(--cream);padding:14px;box-shadow:var(--shadow);height:320px}.egg-chart canvas{width:100%!important;height:100%!important}.chart-empty{display:grid;place-items:center;height:100%;color:var(--muted);font:12px Consolas,monospace}
     .egg-automation{display:flex;flex-wrap:wrap;align-items:center;gap:14px;border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px;box-shadow:var(--shadow)}.egg-automation label{display:flex;align-items:center;gap:7px;color:var(--blue-deep);font-weight:800}.egg-automation input{width:18px;height:18px;accent-color:var(--green)}.egg-automation-status{color:var(--muted);font:11px Consolas,monospace;flex:1;min-width:220px}
+    .automation-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px;border:2px solid var(--line);background:linear-gradient(145deg,#fffdf0,var(--panel2));padding:14px;box-shadow:var(--shadow)}.automation-controls label{display:flex;flex-direction:column;gap:4px;color:var(--blue-deep);font:700 11px Consolas,monospace;text-transform:uppercase}.automation-controls select,.automation-controls input[type=number]{border:2px solid var(--line);background:var(--cream);color:var(--ink);padding:8px;min-width:130px}.automation-confirm{display:flex!important;flex-direction:row!important;align-items:center;gap:7px;padding-bottom:9px}.automation-confirm input{width:18px;height:18px;accent-color:var(--green)}.automation-status{margin-top:12px;color:var(--muted);font:12px Consolas,monospace}.automation-log{margin-top:12px;min-height:150px;max-height:300px;overflow:auto;border:2px solid var(--line);background:#071b2d;color:#9ee7b2;padding:14px;white-space:pre-wrap;font:12px/1.5 Consolas,monospace}
   </style>
 </head>
 <body>
@@ -43,7 +44,7 @@
       <div class="status" id="status"><span class="status-dot"></span><small>CONNECTING</small></div>
     </header>
     <div class="actions"><div class="meta"><span id="stage">Stage --</span><span id="wave">Wave --</span><span id="session">Session --</span><span id="total">Total --</span><span id="elapsed">Elapsed --</span></div><div><button class="button" id="reset" type="button">Reset session</button></div></div>
-    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button><button class="tab" data-tab="awakeningsPanel">Awakenings</button><button class="tab" data-tab="turboPanel">Turbo</button></nav>
+    <nav class="tabs" aria-label="Dashboard views"><button class="tab active" data-tab="ratesPanel">Battle rates</button><button class="tab" data-tab="eggsPanel">Egg drops</button><button class="tab" data-tab="skillsPanel">Skills</button><button class="tab" data-tab="awakeningsPanel">Awakenings</button><button class="tab" data-tab="turboPanel">Turbo</button><button class="tab" data-tab="automationPanel">Automation</button></nav>
     <div id="skillsPanel" class="tab-panel"><section class="section"><div class="section-head"><div class="label">Skill reference</div><div class="note">Browse by skill type</div></div><div id="skillRollReference"></div><div id="skillTabs" class="skill-tabs"></div><div id="skillsContent"></div><p class="note skill-disclaimer">The listed signature species is the skill's natural owner, not its exclusive owner. Signature skills are excluded from the standard level-milestone pool, but higher-star signature skills can appear in the rare-choice slot and can also be inherited through breeding.</p></section></div>
     <div id="ratesPanel" class="tab-panel active">
     <section class="cards">
@@ -91,6 +92,13 @@
         <pre class="turbo-console" id="turboConsole">Turbo console waiting.</pre>
       </section>
     </div>
+    <div id="automationPanel" class="tab-panel">
+      <section class="section"><div class="section-head"><div class="label">Auto crafting</div><div class="note">Runs continuously until stopped</div></div>
+        <div class="automation-controls"><label>Craft mode<select id="craftMode"><option value="gear">Gear</option><option value="charm">Charm</option><option value="both">Gear and charm</option></select></label><label>Min attack %<input id="craftMinAtkPct" type="number" min="0" step="0.01" value="0.90"></label><label>Min skill power<input id="craftMinSkillPower" type="number" min="0" step="0.01" value="0.40"></label><label class="automation-confirm"><input id="craftConfirm" type="checkbox"> I understand crafted items are consumed</label><button class="button" id="craftStart" type="button">Start crafting</button><button class="button" id="craftStop" type="button">Stop</button></div>
+        <div class="automation-status" id="craftStatus">Automation idle.</div>
+        <pre class="automation-log" id="craftLog">Crafting log waiting.</pre>
+      </section>
+    </div>
     <p class="note warning" id="warning">Rates begin after the first two samples.</p>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
@@ -128,6 +136,17 @@
       const last = automation.last;
       const result = last && !last.error ? `Last run: opened ${last.opened ?? 0}, combined ${last.condensed ?? 0}; protected Aw VI: ${last.protectedAwakeningSix ?? 0}` : "";
       $("ultraAutomationStatus").textContent = automation.lastError ? `Error: ${automation.lastError}` : automation.busy ? "Running..." : (automation.open || automation.condense ? result || "Automation enabled; waiting for next run" : "Automation off");
+    }
+    function renderCrafting(crafting) {
+      if (!crafting) return;
+      $("craftMode").value = crafting.mode ?? "gear";
+      $("craftMinAtkPct").value = crafting.minAtkPct ?? 0.9;
+      $("craftMinSkillPower").value = crafting.minSkillPower ?? 0.4;
+      $("craftStart").disabled = crafting.running === true;
+      $("craftStop").disabled = crafting.running !== true;
+      const result = crafting.lastResult ? `Last run: ${crafting.lastResult.crafted ? "crafted" : "no craft"}${crafting.lastResult.verified ? " and verified" : ""}` : "No crafts yet";
+      $("craftStatus").textContent = crafting.lastError ? `Error: ${crafting.lastError}` : crafting.running ? `Running ${crafting.mode} automation · ${crafting.runs} verified crafts` : `${result} · ${crafting.exitReason ?? "idle"}`;
+      $("craftLog").textContent = crafting.logs?.length ? crafting.logs.map((entry) => `${new Date(entry.at).toLocaleTimeString()} | ${entry.message}`).join("\n") : "Crafting log waiting.";
     }
     function renderEggChart(drops, sessionDrops) {
       const wrap = $("eggChartWrap");
@@ -236,6 +255,7 @@
         }
         renderEggs(data);
         renderUltraAutomation(data.ultraAutomation);
+        renderCrafting(data.crafting);
         $("turboPulse").classList.toggle("turbo-active", data.turbo === true);
         $("turboPulse").textContent = data.turbo === true ? "Turbo running" : "Start Turbo";
         $("turboPhase").textContent = `Phase ${data.turboPhase ?? "idle"}`;
@@ -467,6 +487,22 @@
     loadAwakenings();
     $("autoOpenUltra").addEventListener("change", () => updateUltraAutomation().catch((error) => { $("ultraAutomationStatus").textContent = `Error: ${error.message}`; }));
     $("autoCondenseUltra").addEventListener("change", () => updateUltraAutomation().catch((error) => { $("ultraAutomationStatus").textContent = `Error: ${error.message}`; }));
+    $("craftStart").addEventListener("click", async () => {
+      if (!$("craftConfirm").checked) { $("craftStatus").textContent = "Check the confirmation before starting."; return; }
+      const button = $("craftStart"); button.disabled = true;
+      try {
+        const response = await fetch("/api/crafting", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, mode: $("craftMode").value, minAtkPct: Number($("craftMinAtkPct").value), minSkillPower: Number($("craftMinSkillPower").value) }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Unable to start crafting");
+        renderCrafting(data);
+      } catch (error) { $("craftStatus").textContent = `Error: ${error.message}`; button.disabled = false; }
+    });
+    $("craftStop").addEventListener("click", async () => {
+      try {
+        const response = await fetch("/api/crafting/stop", { method: "POST" });
+        renderCrafting(await response.json());
+      } catch (error) { $("craftStatus").textContent = `Error: ${error.message}`; }
+    });
     document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button === tab));
       document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tab.dataset.tab));

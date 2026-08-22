@@ -15,6 +15,13 @@ const RETRYABLE_UI_REASONS = new Set([
   "auto-fill-not-found",
 ]);
 
+function waitFor(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
 const SNAPSHOT = `(() => {
   const debug = window.__battleDebug?.();
   const state = debug?.state;
@@ -205,21 +212,21 @@ const ALCHEMIZE_LOW_EGGS = `(async () => {
   return { ok: after === 0, count: before - after, remaining: after };
 })()`;
 
-export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns = 1, mode = "gear", confirm = false, loop = false, minAtkPct = DEFAULT_MIN_ATK_PCT, minSkillPower = DEFAULT_MIN_SKILL_POWER, log = console.log } = {}) {
+export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns = 1, mode = "gear", confirm = false, loop = false, minAtkPct = DEFAULT_MIN_ATK_PCT, minSkillPower = DEFAULT_MIN_SKILL_POWER, log = console.log, signal } = {}) {
   if (!confirm) throw new Error("Craft automation changes game state; rerun with --confirm to enable it");
   if (!Number.isInteger(maxRuns) || maxRuns < 1) throw new Error("maxRuns must be a positive integer");
   if (!new Set(["gear", "charm", "both"]).has(mode)) throw new Error("mode must be gear, charm, or both");
 
   const results = [];
   let exitReason = loop ? "stopped-by-user" : "max-runs-reached";
-  for (let run = 0; loop || run < maxRuns; run += 1) {
+  for (let run = 0; (loop || run < maxRuns) && !signal?.aborted; run += 1) {
     let chests = { ok: true, opened: 0, remaining: 0 };
     if (mode !== "charm") {
       chests = await gameAction(OPEN_PENDING_CHESTS, endpoint);
       if (!chests?.ok) {
         if (loop) {
           log(`Chest batch unavailable (${chests?.reason}); checking again in 10 seconds`);
-          await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
+          await waitFor(LOOP_INTERVAL_MS, signal);
           continue;
         }
         results.push({ run: run + 1, crafted: false, reason: chests?.reason ?? "chest-batch-open-failed", chests });
@@ -250,14 +257,14 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
         break;
       }
       log(`No safe nine-item group; checking again in 10 seconds`);
-      await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
+      await waitFor(LOOP_INTERVAL_MS, signal);
       continue;
     }
     const action = await gameAction(craftUiExpression(group.mode, group.band, includeStorage), endpoint);
     if (!action?.ok || !action.crafted) {
       if (loop && RETRYABLE_UI_REASONS.has(action?.reason)) {
         log(`Craft menu unavailable (${action.reason}); retrying in 10 seconds`);
-        await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
+        await waitFor(LOOP_INTERVAL_MS, signal);
         continue;
       }
       results.push({ run: run + 1, crafted: false, ...action });
@@ -280,7 +287,7 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
         .filter((item) => !beforeIds.has(item.id)).length;
       verified = afterCount === beforeCount - (CRAFT_COST - 1) && newItemCount === 1;
       if (verified) break;
-      await new Promise((resolve) => setTimeout(resolve, VERIFY_WAIT_MS));
+      await waitFor(VERIFY_WAIT_MS, signal);
     }
     //if (!verified) {
     //  results.push({ run: run + 1, crafted: true, slots: action.slots, verified, before, after });
@@ -307,8 +314,9 @@ export async function runCraftController({ endpoint = DEFAULT_ENDPOINT, maxRuns 
     log(loop
       ? `Craft ${run + 1}: verified${eggMessage}; opened ${chests.opened} chests; next run in 10 seconds`
       : `Craft ${run + 1}/${maxRuns}: verified${eggMessage}; opened ${chests.opened} chests`);
-    if (loop) await new Promise((resolve) => setTimeout(resolve, LOOP_INTERVAL_MS));
+    if (loop) await waitFor(LOOP_INTERVAL_MS, signal);
   }
+  if (signal?.aborted) exitReason = "stopped-by-user";
   log(`Craft controller exiting: ${exitReason}`);
   return { results, exitReason };
 }

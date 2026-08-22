@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLiveMetrics } from "../src/live.js";
+import { createLiveMetrics, selectAwakeningRitual } from "../src/live.js";
+
+test("awakening selects the highest non-six target and all zero-awakened fodder", () => {
+  const monsters = [
+    { id: "zero-a", awakening: 0 }, { id: "zero-b", awakening: 0 },
+    { id: "tier-two", awakening: 2 }, { id: "tier-five", awakening: 5 }, { id: "six", awakening: 6 },
+  ];
+  const selection = selectAwakeningRitual(monsters);
+  assert.equal(selection.target.id, "tier-five");
+  assert.deepEqual(selection.foods.map((monster) => monster.id), ["zero-a", "zero-b"]);
+});
+
+test("awakening falls back to a random zero-awakened pair when no progressed target exists", () => {
+  const monsters = [{ id: "zero-a", awakening: 0 }, { id: "zero-b", awakening: 0 }, { id: "zero-c", awakening: 0 }, { id: "six", awakening: 6 }];
+  const selection = selectAwakeningRitual(monsters, () => 0.99);
+  assert.equal(selection.target.id, "zero-c");
+  assert.equal(selection.foods.length, 1);
+  assert.notEqual(selection.foods[0].id, selection.target.id);
+});
 
 test("live metrics calculate gross gold, net gold, kills, and per-member XP rates", () => {
   const metrics = createLiveMetrics();

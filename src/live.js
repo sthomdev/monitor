@@ -6,6 +6,7 @@ import { evaluateRuntime } from "./cdp.js";
 import { AWAKENING, AWAKEN_MAX, DEX_BUFF_CAPS, EGG_DROP_CHANCE, JOBS, PERKS, RARITY_META, RARITY_ORDER, SKILLS, SPECIES, dexTotals, skillStars } from "../extracted/data.js";
 import { resolvePartyAttack } from "./real-stats.js";
 import { renderReport } from "./report.js";
+import { runCraftController } from "./craft-controller.js";
 
 const LEVEL_CAP = 100;
 const EMA_TIME_CONSTANT_MS = 30_000;
@@ -23,6 +24,25 @@ const STAGES_PER_DIFFICULTY = 10;
 const KPM_HISTORY_LIMIT = 3601;
 const RARE_CHOICE_BASE = 0.08;
 const RARE_CHOICE_PER_STAR = 0.012;
+
+export function selectAwakeningRitual(monsters, random = Math.random) {
+  const eligible = monsters.filter((monster) => (monster.awakening ?? 0) < 6);
+  const zeroAwakened = eligible.filter((monster) => (monster.awakening ?? 0) === 0);
+  const progressed = eligible
+    .filter((monster) => (monster.awakening ?? 0) > 0)
+    .sort((left, right) => (right.awakening ?? 0) - (left.awakening ?? 0));
+  if (progressed.length > 0 && zeroAwakened.length > 0) {
+    return { target: progressed[0], foods: zeroAwakened };
+  }
+  if (progressed.length === 0 && zeroAwakened.length >= 2) {
+    const targetIndex = Math.min(zeroAwakened.length - 1, Math.floor(random() * zeroAwakened.length));
+    const target = zeroAwakened[targetIndex];
+    const foodPool = zeroAwakened.filter((_, index) => index !== targetIndex);
+    const food = foodPool[Math.min(foodPool.length - 1, Math.floor(random() * foodPool.length))];
+    return { target, foods: [food] };
+  }
+  return null;
+}
 
 const percent = (value) => `${Math.round((value ?? 0) * 100)}%`;
 function englishSkillDescription(skill) {
@@ -725,6 +745,70 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     }
   };
   const ultraAutomationTimer = setInterval(runUltraAutomation, 5_000);
+  const craftAutomation = {
+    running: false,
+    mode: "gear",
+    minAtkPct: 0.9,
+    minSkillPower: 0.4,
+    runs: 0,
+    lastResult: null,
+    exitReason: null,
+    lastError: null,
+    logs: [],
+    controller: null,
+  };
+  const craftStatus = () => ({
+    running: craftAutomation.running,
+    mode: craftAutomation.mode,
+    minAtkPct: craftAutomation.minAtkPct,
+    minSkillPower: craftAutomation.minSkillPower,
+    runs: craftAutomation.runs,
+    lastResult: craftAutomation.lastResult,
+    exitReason: craftAutomation.exitReason,
+    lastError: craftAutomation.lastError,
+    logs: craftAutomation.logs,
+  });
+  const stopCraftAutomation = () => {
+    if (craftAutomation.controller) craftAutomation.controller.abort();
+  };
+  const startCraftAutomation = ({ mode, minAtkPct, minSkillPower }) => {
+    if (craftAutomation.running) throw new Error("Craft automation is already running");
+    craftAutomation.running = true;
+    craftAutomation.mode = mode;
+    craftAutomation.minAtkPct = minAtkPct;
+    craftAutomation.minSkillPower = minSkillPower;
+    craftAutomation.runs = 0;
+    craftAutomation.lastResult = null;
+    craftAutomation.exitReason = null;
+    craftAutomation.lastError = null;
+    craftAutomation.logs = [];
+    craftAutomation.controller = new AbortController();
+    runCraftController({
+      endpoint,
+      mode,
+      maxRuns: 1,
+      confirm: true,
+      loop: true,
+      minAtkPct,
+      minSkillPower,
+      signal: craftAutomation.controller.signal,
+      log: (message) => {
+        craftAutomation.logs.push({ at: Date.now(), message });
+        craftAutomation.logs = craftAutomation.logs.slice(-60);
+      },
+    }).then((result) => {
+      craftAutomation.runs = result.results.filter((entry) => entry.crafted).length;
+      const last = result.results.at(-1);
+      craftAutomation.lastResult = last ? { crafted: last.crafted, verified: last.verified, reason: last.reason ?? null } : null;
+      craftAutomation.exitReason = result.exitReason;
+    }).catch((error) => {
+      craftAutomation.lastError = error.message;
+      craftAutomation.exitReason = "error";
+    }).finally(() => {
+      craftAutomation.running = false;
+      craftAutomation.controller = null;
+    });
+  };
   const refreshTurboState = async () => {
     if (!turboEnabled) return;
     try {
@@ -773,7 +857,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
     if (pathname === "/api/live") {
       await refreshTurboState();
       response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog, ultraAutomation: { ...ultraAutomation } }));
+      response.end(JSON.stringify({ ...metrics.read(), turbo: turboEnabled, turboPhase, turboKeys, turboStack, turboLastAction, turboLog, ultraAutomation: { ...ultraAutomation }, crafting: craftStatus() }));
       return;
     }
     if (pathname === "/api/report") {
@@ -785,6 +869,35 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
       }
       response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       response.end(renderReport({ party: latest.report, generatedAt: new Date(latest.timestamp).toISOString() }));
+      return;
+    }
+    if (pathname === "/api/crafting" && request.method === "GET") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      response.end(JSON.stringify(craftStatus()));
+      return;
+    }
+    if (pathname === "/api/crafting" && request.method === "POST") {
+      try {
+        const body = await readRequestBody(request);
+        if (body.confirm !== true) throw new Error("Craft automation requires explicit confirmation");
+        const mode = body.mode ?? "gear";
+        const minAtkPct = Number(body.minAtkPct ?? 0.9);
+        const minSkillPower = Number(body.minSkillPower ?? 0.4);
+        if (!new Set(["gear", "charm", "both"]).has(mode)) throw new Error("Mode must be gear, charm, or both");
+        if (!Number.isFinite(minAtkPct) || minAtkPct < 0 || !Number.isFinite(minSkillPower) || minSkillPower < 0) throw new Error("Thresholds must be non-negative numbers");
+        startCraftAutomation({ mode, minAtkPct, minSkillPower });
+        response.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.end(JSON.stringify(craftStatus()));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+    if (pathname === "/api/crafting/stop" && request.method === "POST") {
+      stopCraftAutomation();
+      response.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      response.end(JSON.stringify(craftStatus()));
       return;
     }
     if (pathname === "/api/keys") {
@@ -921,6 +1034,7 @@ export async function startLiveDashboard({ host = "127.0.0.1", port = 4173, endp
   server.on("close", () => {
     clearInterval(timer);
     clearInterval(ultraAutomationTimer);
+    stopCraftAutomation();
     if (turboRefreshTimer) clearInterval(turboRefreshTimer);
   });
   await new Promise((resolve) => server.listen(port, host, resolve));
@@ -1007,26 +1121,50 @@ function ultraAutomationExpression({ open, condense }) {
         return Boolean(panel && ritualTab);
       };
       const clearRitualTarget = async () => {
-        const clearButton = document.querySelector("#compound-panel .cmp-slot:not(.cmp-empty) .cmp-x");
-        if (clearButton) {
+        let clearButton = document.querySelector("#compound-panel .cmp-slot:not(.cmp-empty) .cmp-x");
+        while (clearButton) {
           clearButton.click();
           await sleep(150);
+          clearButton = document.querySelector("#compound-panel .cmp-slot:not(.cmp-empty) .cmp-x");
         }
       };
       for (const monsters of groups.values()) {
+        const speciesId = monsters[0]?.speciesId;
         const party = new Set(state.party ?? []);
         const expedition = new Set((state.expeditions ?? []).flatMap((group) => Array.isArray(group) ? group : (group.members ?? [])));
-        const eligible = monsters.filter((monster) => (monster.awakening ?? 0) < 6 && !monster.fav && !party.has(monster.id) && !expedition.has(monster.id));
+        const isEligible = (monster) => (monster.awakening ?? 0) < 6 && !monster.fav && !party.has(monster.id) && !expedition.has(monster.id);
         const protectedCount = monsters.filter((monster) => (monster.awakening ?? 0) >= 6).length;
         result.protectedAwakeningSix += protectedCount;
-        eligible.sort((left, right) => (left.awakening ?? 0) - (right.awakening ?? 0));
-        for (let index = 0; index + 1 < eligible.length; index += 2) {
-          const target = eligible[index];
-          const food = eligible[index + 1];
+        for (;;) {
+          const selection = (() => {
+            const currentMonsters = Object.values(state.monsters ?? {}).filter((monster) => monster.speciesId === speciesId);
+            const eligible = currentMonsters.filter(isEligible);
+            const zeroAwakened = eligible.filter((monster) => (monster.awakening ?? 0) === 0);
+            const progressed = eligible
+              .filter((monster) => (monster.awakening ?? 0) > 0)
+              .sort((left, right) => (right.awakening ?? 0) - (left.awakening ?? 0));
+            if (progressed.length > 0 && zeroAwakened.length > 0) return { target: progressed[0], foods: zeroAwakened };
+            if (progressed.length > 0 || zeroAwakened.length < 2) return null;
+            const targetIndex = Math.floor(Math.random() * zeroAwakened.length);
+            const target = zeroAwakened[targetIndex];
+            const foodPool = zeroAwakened.filter((_, index) => index !== targetIndex);
+            const food = foodPool[Math.floor(Math.random() * foodPool.length)];
+            return { target, foods: [food] };
+          })();
+          if (!selection) break;
+          const { target, foods } = selection;
           await clearRitualTarget();
-          if (!(await openRitual()) || !(await clickMonster(target.id)) || !(await clickMonster(food.id))) {
+          if (!(await openRitual()) || !(await clickMonster(target.id))) {
             result.skipped.push("No ritual path for " + target.speciesId);
-            continue;
+            break;
+          }
+          let clickedAllFoods = true;
+          for (const food of foods) {
+            if (!(await clickMonster(food.id))) { clickedAllFoods = false; break; }
+          }
+          if (!clickedAllFoods) {
+            result.skipped.push("No ritual path for " + target.speciesId);
+            break;
           }
           const beforeCount = Object.keys(state.monsters).length;
           const ritualButton = [...document.querySelectorAll("button.cmp-cta")].find((button) => !button.disabled && /儀式|rite|awaken/i.test(button.textContent));
